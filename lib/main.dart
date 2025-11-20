@@ -20,6 +20,7 @@ class MyApp extends StatelessWidget {
 
 final routes = {
   '/home': (context) => Home(),
+  '/riverpod_test': (context) => RiverpodCounterPage()
 };
 class Home extends StatelessWidget{
 
@@ -50,7 +51,7 @@ class Home extends StatelessWidget{
             crossAxisAlignment: CrossAxisAlignment.center,
             spacing: 8,
             children: [
-
+              menuButton(context, "/riverpod_test")
             ],
           ),
         )
