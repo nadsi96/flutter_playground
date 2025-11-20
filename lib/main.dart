@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_playground/multi_split_view/multi_split_view_example.dart';
 import 'package:flutter_playground/riverpod/riverpod_counter_page.dart';
 
 void main() {
@@ -20,7 +21,8 @@ class MyApp extends StatelessWidget {
 
 final routes = {
   '/home': (context) => Home(),
-  '/riverpod_test': (context) => RiverpodCounterPage()
+  '/riverpod_test': (context) => RiverpodCounterPage(),
+  '/multi_split_view_example': (context) => MultiSplitViewExamplePage()
 };
 class Home extends StatelessWidget{
 
@@ -51,7 +53,8 @@ class Home extends StatelessWidget{
             crossAxisAlignment: CrossAxisAlignment.center,
             spacing: 8,
             children: [
-              menuButton(context, "/riverpod_test")
+              menuButton(context, "/riverpod_test"),
+              menuButton(context, "/multi_split_view_example")
             ],
           ),
         )
