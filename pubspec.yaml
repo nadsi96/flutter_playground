@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_riverpod: ^3.0.3
   multi_split_view: ^3.6.1
+  docking: ^1.16.1
 
 dev_dependencies:
   flutter_test:
