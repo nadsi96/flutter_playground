@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_playground/docking_layout/docking_layout_example.dart';
+import 'package:flutter_playground/multi_split_view/dynamic_split_view_example.dart';
 import 'package:flutter_playground/multi_split_view/multi_split_view_example.dart';
 import 'package:flutter_playground/riverpod/riverpod_counter_page.dart';
 
@@ -24,6 +25,7 @@ final routes = {
   '/home': (context) => Home(),
   '/riverpod_test': (context) => RiverpodCounterPage(),
   '/multi_split_view_example': (context) => MultiSplitViewExamplePage(),
+  '/dynamic_split_view_example': (context) => DynamicSplitViewExample(),
   '/docking_layout_example': (context) => DockingExamplePage()
 };
 class Home extends StatelessWidget{
@@ -34,7 +36,7 @@ class Home extends StatelessWidget{
         Navigator.pushNamed(context, sRoute);
       },
       child: Container(
-        width: 200,
+        width: 250,
         height: 50,
         color: Colors.blue,
         child: Center(
@@ -57,6 +59,7 @@ class Home extends StatelessWidget{
             children: [
               menuButton(context, "/riverpod_test"),
               menuButton(context, "/multi_split_view_example"),
+              menuButton(context, "/dynamic_split_view_example"),
               menuButton(context, "/docking_layout_example"),
             ],
           ),
