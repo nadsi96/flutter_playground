@@ -389,14 +389,24 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
 
       List<Area> areas = [];
       for (int i = 0; i < childrenWidgets.length; i++) {
-        double? size;
+        // [수정 1] 저장된 비율(ratios)이 있으면 그것을 flex로 변환하여 적용
+        // ratios는 0.0 ~ 1.0 사이의 값이므로 1000을 곱해 정수형 flex로 만듭니다.
+        // 비율 정보가 없으면 기본값 1 (1:1 분할)을 사용합니다.
+        double flex = 1;
+        print("flag 1");
         if (node.ratios != null && i < node.ratios!.length) {
-          size = node.ratios![i];
+          print("flag 2 :: ${node.ratios![i]}");
+          // 예: 비율이 0.3이면 flex는 300
+          flex = (node.ratios![i] * 1000);
+          print("flag 3 :: $flex");
+          if (flex == 0) flex = 1; // 최소값 보정
         }
+        print("flag 4 :: $flex");
+
         areas.add(Area(
           data: childrenWidgets[i],
-          size: size,
-          flex: size == null ? 1 : null,
+          // size(고정 픽셀) 대신 flex(비율)를 사용해야 반응형으로 동작합니다.
+          flex: flex,
         ));
       }
 
@@ -409,7 +419,22 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         controller: controller,
         builder: (context, area) => area.data as Widget,
         onDividerDragUpdate: (index) {
-          node.ratios = controller.areas.map((a) => a.size ?? 0.0).toList();
+          // [수정] size 대신 flex를 사용하여 비율 계산
+
+          // 1. 현재 영역들의 flex 합계 계산
+          // flex로 생성된 Area는 드래그 시 flex 값이 자동으로 업데이트됩니다.
+          double totalFlex = controller.areas.fold(0.0, (sum, area) => sum + (area.flex ?? 0.0));
+
+          // 디버깅용 로그 (필요시 주석 해제)
+          // print("dragFlag :: totalFlex: $totalFlex");
+
+          if (totalFlex > 0) {
+            // 2. 각 영역의 flex를 전체 flex로 나누어 비율(0.0~1.0)로 저장
+            node.ratios = controller.areas.map((a) => (a.flex ?? 0.0) / totalFlex).toList();
+
+            // 3. 저장
+            _saveLayout();
+          }
         },
       );
     }
