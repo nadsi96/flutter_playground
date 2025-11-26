@@ -14,7 +14,6 @@ class TabData {
   String id;
   String title;
   TabData({required this.id, required this.title});
-
   Map<String, dynamic> toJson() => {'id': id, 'title': title};
   factory TabData.fromJson(Map<String, dynamic> json) =>
       TabData(id: json['id'], title: json['title']);
@@ -106,12 +105,13 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     return 'node_${DateTime.now().millisecondsSinceEpoch}_$_idCounter';
   }
 
-  // --- Drag Callbacks ---
+  // --- Drag State Management ---
   void _onDragStarted() {
     if (!_isDragging) setState(() => _isDragging = true);
   }
 
   void _onDragEnded() {
+    // 이미 로직에 의해 false가 된 경우 중복 호출 방지
     if (_isDragging) setState(() => _isDragging = false);
   }
 
@@ -119,12 +119,12 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
   Future<void> _saveLayout() async {
     if (_rootNode == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('saved_layout_v9', jsonEncode(_rootNode!.toJson()));
+    await prefs.setString('saved_layout_v12', jsonEncode(_rootNode!.toJson()));
   }
 
   Future<void> _loadLayout() async {
     final prefs = await SharedPreferences.getInstance();
-    String? json = prefs.getString('saved_layout_v9');
+    String? json = prefs.getString('saved_layout_v12');
     if (json != null) {
       try {
         setState(() => _rootNode = LayoutNode.fromJson(jsonDecode(json)));
@@ -149,7 +149,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     });
   }
 
-  // --- Helpers ---
+  // --- Tree Helpers ---
   LayoutNode? _findNodeById(LayoutNode? current, String id) {
     if (current == null) return null;
     if (current.id == id) return current;
@@ -160,15 +160,10 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     return null;
   }
 
-  // ---------------------------------------------------------------------------
-  // [핵심] 트리를 순회하며 빈 노드를 삭제하고, 자식이 1개인 경우 승격시키는 함수
-  // ---------------------------------------------------------------------------
   LayoutNode? _cleanTree(LayoutNode node) {
     if (node.type == NodeType.leaf) {
-      // 탭이 없는 리프 노드는 삭제 대상(null 반환)
       return node.tabs.isEmpty ? null : node;
     } else {
-      // Split Node: 자식들을 재귀적으로 정리
       List<LayoutNode> newChildren = [];
       for (var child in node.children) {
         var cleanedChild = _cleanTree(child);
@@ -178,29 +173,46 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
       }
       node.children = newChildren;
 
-      // 자식이 다 없어졌으면 이 노드도 삭제
       if (node.children.isEmpty) return null;
+      if (node.children.length == 1) return node.children.first;
 
-      // 자식이 1개만 남았으면, 불필요한 분할이므로 자식을 위로 승격(Promotion)
-      if (node.children.length == 1) {
-        return node.children.first;
-      }
-
-      // 자식 수나 구조가 바뀌었을 수 있으므로 비율 정보는 초기화 (안전장치)
       if (node.ratios != null && node.ratios!.length != node.children.length) {
         node.ratios = null;
       }
-
       return node;
     }
   }
 
   // ---------------------------------------------------------------------------
-  // 탭 드롭 처리 핸들러
+  // [Fix 1] 탭 순서 변경 로직 수정 및 드래그 상태 초기화
+  // ---------------------------------------------------------------------------
+  void _handleTabReorder(String nodeId, String tabId, int targetIndex) {
+    // 1. 드래그 상태 강제 해제 (글로벌 버튼 숨김)
+    setState(() => _isDragging = false);
+
+    LayoutNode? node = _findNodeById(_rootNode, nodeId);
+    if (node == null) return;
+
+    int oldIndex = node.tabs.indexWhere((t) => t.id == tabId);
+    if (oldIndex == -1) return;
+
+    setState(() {
+      // 2. 탭 이동 로직
+      TabData tab = node.tabs.removeAt(oldIndex);
+      node.tabs.insert(targetIndex, tab);
+
+      node.selectedTabIndex = targetIndex;
+      _saveLayout();
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // [Fix 2] 탭 드롭(분할/이동) 로직 수정 및 드래그 상태 초기화
   // ---------------------------------------------------------------------------
   void _handleTabDrop(String srcNodeId, String tabId, String targetNodeId,
       String action, {bool isRootDrop = false}) {
 
+    // 1. 드래그 상태 강제 해제
     setState(() => _isDragging = false);
 
     LayoutNode? srcNode = _findNodeById(_rootNode, srcNodeId);
@@ -212,7 +224,6 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
       if (srcNode.tabs.length <= 1) return;
     }
 
-    // 1. 탭 찾기 및 제거
     int tabIndex = srcNode.tabs.indexWhere((t) => t.id == tabId);
     if (tabIndex == -1) return;
     TabData tabToMove = srcNode.tabs[tabIndex];
@@ -223,31 +234,19 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         srcNode.selectedTabIndex = srcNode.tabs.isEmpty ? 0 : srcNode.tabs.length - 1;
       }
 
-      // 2. 트리 정리 (빈 노드 제거 및 승격)
-      // 전체 영역 분할(isRootDrop)이거나 다른 노드로 이동할 때는
-      // 소스 노드가 비면 즉시 정리하여 트리를 단순화해야 합니다.
+      // 트리 정리
       if (isRootDrop || srcNodeId != targetNodeId) {
         LayoutNode? cleanedRoot = _cleanTree(_rootNode!);
-        // 모든 탭이 사라지는 경우는 없다고 가정(move이므로),
-        // 하지만 만약 null이면 tabToMove만 가진 새 루트 생성
         if (cleanedRoot == null) {
-          _rootNode = LayoutNode(
-            id: _generateId(),
-            type: NodeType.leaf,
-            tabs: [],
-          ); // 아래 로직에서 tabToMove 추가됨
+          _rootNode = LayoutNode(id: _generateId(), type: NodeType.leaf, tabs: []);
         } else {
           _rootNode = cleanedRoot;
         }
       }
 
-      // 3. 타겟 위치에 추가/분할
       if (isRootDrop) {
-        // 루트 분할: 이미 _cleanTree를 거쳤으므로 _rootNode는 정리된 상태(예: 단일 노드)
         _splitRoot(tabToMove, action);
       } else {
-        // 로컬 분할
-        // _cleanTree 이후 targetNode 참조를 다시 찾아야 안전함 (ID 유지됨)
         LayoutNode? targetNode = _findNodeById(_rootNode, targetNodeId);
         if (targetNode != null) {
           if (action == 'center') {
@@ -315,7 +314,6 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     _rootNode = newRoot;
   }
 
-  // --- UI Builders ---
   @override
   Widget build(BuildContext context) {
     if (_rootNode == null) return const Scaffold();
@@ -329,7 +327,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
               icon: const Icon(Icons.refresh),
               onPressed: () {
                 SharedPreferences.getInstance()
-                    .then((p) => p.remove('saved_layout_v9'));
+                    .then((p) => p.remove('saved_layout_v12'));
                 _initDefault();
               })
         ],
@@ -382,6 +380,8 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         onSelectTab: (idx) => setState(() => node.selectedTabIndex = idx),
         onDragStarted: _onDragStarted,
         onDragEnded: _onDragEnded,
+        onTabReorder: (tabId, targetIndex) =>
+            _handleTabReorder(node.id, tabId, targetIndex),
       );
     } else {
       List<Widget> childrenWidgets =
@@ -389,25 +389,11 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
 
       List<Area> areas = [];
       for (int i = 0; i < childrenWidgets.length; i++) {
-        // [수정 1] 저장된 비율(ratios)이 있으면 그것을 flex로 변환하여 적용
-        // ratios는 0.0 ~ 1.0 사이의 값이므로 1000을 곱해 정수형 flex로 만듭니다.
-        // 비율 정보가 없으면 기본값 1 (1:1 분할)을 사용합니다.
-        double flex = 1;
-        print("flag 1");
+        double flex = 1.0;
         if (node.ratios != null && i < node.ratios!.length) {
-          print("flag 2 :: ${node.ratios![i]}");
-          // 예: 비율이 0.3이면 flex는 300
-          flex = (node.ratios![i] * 1000);
-          print("flag 3 :: $flex");
-          if (flex == 0) flex = 1; // 최소값 보정
+          flex = node.ratios![i];
         }
-        print("flag 4 :: $flex");
-
-        areas.add(Area(
-          data: childrenWidgets[i],
-          // size(고정 픽셀) 대신 flex(비율)를 사용해야 반응형으로 동작합니다.
-          flex: flex,
-        ));
+        areas.add(Area(data: childrenWidgets[i], flex: flex));
       }
 
       MultiSplitViewController controller =
@@ -419,20 +405,9 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         controller: controller,
         builder: (context, area) => area.data as Widget,
         onDividerDragUpdate: (index) {
-          // [수정] size 대신 flex를 사용하여 비율 계산
-
-          // 1. 현재 영역들의 flex 합계 계산
-          // flex로 생성된 Area는 드래그 시 flex 값이 자동으로 업데이트됩니다.
           double totalFlex = controller.areas.fold(0.0, (sum, area) => sum + (area.flex ?? 0.0));
-
-          // 디버깅용 로그 (필요시 주석 해제)
-          // print("dragFlag :: totalFlex: $totalFlex");
-
           if (totalFlex > 0) {
-            // 2. 각 영역의 flex를 전체 flex로 나누어 비율(0.0~1.0)로 저장
             node.ratios = controller.areas.map((a) => (a.flex ?? 0.0) / totalFlex).toList();
-
-            // 3. 저장
             _saveLayout();
           }
         },
@@ -442,7 +417,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
 }
 
 // =============================================================================
-// 3. Global Split Button (이전과 동일)
+// 3. Global Split Button
 // =============================================================================
 
 class _GlobalSplitButton extends StatelessWidget {
@@ -518,7 +493,7 @@ class _GlobalSplitButton extends StatelessWidget {
 }
 
 // =============================================================================
-// 4. Pane & Tab (이전과 동일)
+// 4. Pane & Tab
 // =============================================================================
 
 class _DockingPane extends StatefulWidget {
@@ -528,6 +503,7 @@ class _DockingPane extends StatefulWidget {
   final Function(int) onSelectTab;
   final VoidCallback onDragStarted;
   final VoidCallback onDragEnded;
+  final Function(String tabId, int targetIndex) onTabReorder;
 
   const _DockingPane({
     required this.node,
@@ -536,6 +512,7 @@ class _DockingPane extends StatefulWidget {
     required this.onSelectTab,
     required this.onDragStarted,
     required this.onDragEnded,
+    required this.onTabReorder,
   });
 
   @override
@@ -544,27 +521,25 @@ class _DockingPane extends StatefulWidget {
 
 class _DockingPaneState extends State<_DockingPane> {
   String? _hoverAction;
-  final GlobalKey _paneKey = GlobalKey();
+  // Pane 전체가 아닌 컨텐츠 영역의 키로 사용하기 위해 변경 가능하나,
+  // 여기서는 DragTarget이 내부로 이동하므로 컨텍스트 찾기가 더 수월해집니다.
+  final GlobalKey _contentKey = GlobalKey();
 
-  void _updateHoverAction(Offset globalPosition) {
-    final RenderBox? renderBox =
-    _paneKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
-
-    final Size size = renderBox.size;
-    final Offset localPos = renderBox.globalToLocal(globalPosition);
+  void _updateHoverAction(Offset localPosition, Size size) {
+    // 1. 이제 좌표가 Content 영역 기준이므로 dy < 36 체크가 필요 없음
+    // 2. 중심점 및 거리 계산
     final Offset center = Offset(size.width / 2, size.height / 2);
-
     const double selectorRadius = 60;
-    final double dist = (localPos - center).distance;
+    final double dist = (localPosition - center).distance;
 
+    // Selector 범위를 벗어나면 액션 초기화
     if (dist > selectorRadius * 1.5) {
       if (_hoverAction != null) setState(() => _hoverAction = null);
       return;
     }
 
-    double dx = localPos.dx - center.dx;
-    double dy = localPos.dy - center.dy;
+    double dx = localPosition.dx - center.dx;
+    double dy = localPosition.dy - center.dy;
 
     String newAction = 'center';
     const double centerZoneSize = 25;
@@ -586,80 +561,101 @@ class _DockingPaneState extends State<_DockingPane> {
 
   @override
   Widget build(BuildContext context) {
-    return DragTarget<DragPayload>(
-      key: _paneKey,
-      onWillAccept: (data) => data != null,
-      onMove: (details) => _updateHoverAction(details.offset),
-      onLeave: (_) => setState(() => _hoverAction = null),
-      onAccept: (data) {
-        if (_hoverAction != null) {
-          widget.onTabDrop(data.sourceNodeId, data.tabId, _hoverAction!);
-        }
-        setState(() => _hoverAction = null);
-      },
-      builder: (context, candidateData, rejectedData) {
-        bool isHovering = candidateData.isNotEmpty;
-
-        return Stack(
-          children: [
-            Column(
-              children: [
-                Container(
-                  height: 36,
-                  color: Colors.grey[200],
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: widget.node.tabs.length,
-                          itemBuilder: (context, index) {
-                            final tab = widget.node.tabs[index];
-                            bool selected = index == widget.node.selectedTabIndex;
-                            return _DraggableTab(
-                              nodeId: widget.node.id,
-                              tab: tab,
-                              isSelected: selected,
-                              onTap: () => widget.onSelectTab(index),
-                              onDragStarted: widget.onDragStarted,
-                              onDragEnded: widget.onDragEnded,
-                            );
-                          },
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add, size: 18),
-                        onPressed: widget.onAddTab,
-                      ),
-                    ],
-                  ),
+    // DragTarget을 최상위에서 제거하고 Column 내부 구조를 변경
+    return Column(
+      children: [
+        // -------------------------------------------------------
+        // 1. 탭 헤더 영역 (순수한 탭 순서 변경 로직만 동작)
+        // -------------------------------------------------------
+        Container(
+          height: 36,
+          color: Colors.grey[200],
+          child: Row(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: widget.node.tabs.length,
+                  itemBuilder: (context, index) {
+                    final tab = widget.node.tabs[index];
+                    bool selected = index == widget.node.selectedTabIndex;
+                    return _DraggableTab(
+                      nodeId: widget.node.id,
+                      tab: tab,
+                      index: index,
+                      isSelected: selected,
+                      onTap: () => widget.onSelectTab(index),
+                      onDragStarted: widget.onDragStarted,
+                      onDragEnded: widget.onDragEnded,
+                      onReorder: (tabId) => widget.onTabReorder(tabId, index),
+                    );
+                  },
                 ),
-                Expanded(
-                  child: Container(
+              ),
+              IconButton(
+                icon: const Icon(Icons.add, size: 18),
+                onPressed: widget.onAddTab,
+              ),
+            ],
+          ),
+        ),
+
+        // -------------------------------------------------------
+        // 2. 컨텐츠 영역 (여기만 분할/합치기 DragTarget 적용)
+        // -------------------------------------------------------
+        Expanded(
+          child: DragTarget<DragPayload>(
+            key: _contentKey,
+            onWillAccept: (data) => data != null,
+            onMove: (details) {
+              // DragTarget이 작아졌으므로 details.offset(전역)을 로컬로 변환해야 함
+              final RenderBox renderBox = _contentKey.currentContext?.findRenderObject() as RenderBox;
+              final Size size = renderBox.size;
+              final Offset localPos = renderBox.globalToLocal(details.offset);
+              _updateHoverAction(localPos, size);
+            },
+            onLeave: (_) => setState(() => _hoverAction = null),
+            onAccept: (data) {
+              if (_hoverAction != null) {
+                widget.onTabDrop(data.sourceNodeId, data.tabId, _hoverAction!);
+              }
+              setState(() => _hoverAction = null);
+            },
+            builder: (context, candidateData, rejectedData) {
+              bool isHovering = candidateData.isNotEmpty;
+
+              return Stack(
+                children: [
+                  // 실제 컨텐츠 내용
+                  Container(
                     color: Colors.white,
                     alignment: Alignment.center,
                     child: widget.node.tabs.isEmpty
                         ? const Text("Empty")
-                        : Text(widget.node.tabs[widget.node.selectedTabIndex].title,
-                        style: const TextStyle(fontSize: 20, color: Colors.grey)),
+                        : Text(
+                      widget.node.tabs[widget.node.selectedTabIndex].title,
+                      style: const TextStyle(fontSize: 20, color: Colors.grey),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            if (isHovering) ...[
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.blueAccent, width: 2),
-                  color: Colors.blueAccent.withOpacity(0.05),
-                ),
-              ),
-              Center(
-                child: _DockingSelectorVisual(highlightedAction: _hoverAction),
-              ),
-            ]
-          ],
-        );
-      },
+
+                  // 드래그 시 표시되는 하이라이트 및 Selector 오버레이
+                  if (isHovering) ...[
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.blueAccent, width: 2),
+                        color: Colors.blueAccent.withOpacity(0.05),
+                      ),
+                    ),
+                    Center(
+                      child: _DockingSelectorVisual(highlightedAction: _hoverAction),
+                    ),
+                  ]
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -715,47 +711,72 @@ class _DockingSelectorVisual extends StatelessWidget {
 class _DraggableTab extends StatelessWidget {
   final String nodeId;
   final TabData tab;
+  final int index;
   final bool isSelected;
   final VoidCallback onTap;
   final VoidCallback onDragStarted;
   final VoidCallback onDragEnded;
+  final Function(String tabId) onReorder;
 
   const _DraggableTab({
     required this.nodeId,
     required this.tab,
+    required this.index,
     required this.isSelected,
     required this.onTap,
     required this.onDragStarted,
     required this.onDragEnded,
+    required this.onReorder,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Draggable<DragPayload>(
-      data: DragPayload(nodeId, tab.id),
-      onDragStarted: onDragStarted,
-      onDraggableCanceled: (_, __) => onDragEnded(),
-      onDragEnd: (_) => onDragEnded(),
-      feedback: Material(
-        color: Colors.transparent,
-        child: Container(
-          width: 150, height: 40, alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(4),
-            boxShadow: const [BoxShadow(blurRadius: 5, color: Colors.black26)],
-            border: Border.all(color: Colors.blue),
+    // 1. DragTarget을 가장 외부에 배치 (수락 역할)
+    return DragTarget<DragPayload>(
+      onWillAccept: (data) {
+        return data != null && data.sourceNodeId == nodeId && data.tabId != tab.id;
+      },
+      onAccept: (data) {
+        onReorder(data.tabId);
+      },
+      builder: (context, candidateData, rejectedData) {
+        bool isHovering = candidateData.isNotEmpty;
+
+        // 2. Draggable (드래그 시작 역할)
+        return Draggable<DragPayload>(
+          data: DragPayload(nodeId, tab.id),
+          onDragStarted: onDragStarted,
+          onDraggableCanceled: (_, __) => onDragEnded(),
+          onDragEnd: (_) => onDragEnded(),
+          feedback: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: 150, height: 40, alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(4),
+                boxShadow: const [BoxShadow(blurRadius: 5, color: Colors.black26)],
+                border: Border.all(color: Colors.blue),
+              ),
+              child: Text(tab.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
           ),
-          child: Text(tab.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ),
-      ),
-      childWhenDragging: Opacity(opacity: 0.3, child: _buildTabDesign()),
-      child: GestureDetector(onTap: onTap, child: _buildTabDesign()),
+          childWhenDragging: Opacity(opacity: 0.3, child: _buildTabDesign(isHovering)),
+          child: GestureDetector(onTap: onTap, child: _buildTabDesign(isHovering)),
+        );
+      },
     );
   }
-  Widget _buildTabDesign() {
+
+  Widget _buildTabDesign(bool isHovering) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: isSelected ? Colors.white : Colors.transparent,
+      decoration: BoxDecoration(
+        color: isSelected ? Colors.white : Colors.transparent,
+        // 드롭 가능한 상태일 때 왼쪽에 파란색 바 표시
+        border: isHovering
+            ? const Border(left: BorderSide(color: Colors.blue, width: 3))
+            : null,
+      ),
       child: Text(tab.title, style: TextStyle(color: isSelected ? Colors.blue : Colors.black, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
     );
   }
