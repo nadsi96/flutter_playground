@@ -5,28 +5,33 @@ import 'package:multi_split_view/multi_split_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // =============================================================================
-// 1. Data Models
+// 1. Data Models (데이터 모델)
 // =============================================================================
 
+/// 노드 타입: 분할된 화면(split)인지, 실제 탭이 있는 말단 화면(leaf)인지 구분
 enum NodeType { split, leaf }
 
+/// 개별 탭 데이터
 class TabData {
   String id;
   String title;
   TabData({required this.id, required this.title});
+
+  // JSON 직렬화/역직렬화
   Map<String, dynamic> toJson() => {'id': id, 'title': title};
   factory TabData.fromJson(Map<String, dynamic> json) =>
       TabData(id: json['id'], title: json['title']);
 }
 
+/// 레이아웃 트리 노드 (재귀적 구조)
 class LayoutNode {
   String id;
   NodeType type;
-  Axis? axis;
-  List<LayoutNode> children;
-  List<double>? ratios;
-  List<TabData> tabs;
-  int selectedTabIndex;
+  Axis? axis; // 분할 방향 (가로/세로)
+  List<LayoutNode> children; // 자식 노드들 (split 타입일 경우)
+  List<double>? ratios; // 자식 노드 간의 비율
+  List<TabData> tabs; // 포함된 탭들 (leaf 타입일 경우)
+  int selectedTabIndex; // 현재 선택된 탭 인덱스
 
   LayoutNode({
     required this.id,
@@ -72,14 +77,15 @@ class LayoutNode {
   }
 }
 
+/// 드래그 앤 드롭 시 전달되는 데이터
 class DragPayload {
-  final String sourceNodeId;
-  final String tabId;
+  final String sourceNodeId; // 드래그 시작된 패널 ID
+  final String tabId; // 드래그된 탭 ID
   DragPayload(this.sourceNodeId, this.tabId);
 }
 
 // =============================================================================
-// 2. Main Screen & Logic
+// 2. Main Screen & Logic (메인 화면 및 비즈니스 로직)
 // =============================================================================
 
 class DockingLayoutExample extends StatefulWidget {
@@ -90,14 +96,14 @@ class DockingLayoutExample extends StatefulWidget {
 }
 
 class _DockingLayoutExampleState extends State<DockingLayoutExample> {
-  LayoutNode? _rootNode;
+  LayoutNode? _rootNode; // 트리의 최상위 노드
   int _idCounter = 0;
-  bool _isDragging = false;
+  bool _isDragging = false; // 현재 드래그 중인지 여부 (전역 버튼 표시용)
 
   @override
   void initState() {
     super.initState();
-    _loadLayout();
+    _loadLayout(); // 저장된 레이아웃 불러오기
   }
 
   String _generateId() {
@@ -105,7 +111,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     return 'node_${DateTime.now().millisecondsSinceEpoch}_$_idCounter';
   }
 
-  // --- Drag State Management ---
+  // --- 드래그 상태 관리 ---
   void _onDragStarted() {
     if (!_isDragging) setState(() => _isDragging = true);
   }
@@ -115,7 +121,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     if (_isDragging) setState(() => _isDragging = false);
   }
 
-  // --- Persistence ---
+  // --- 데이터 저장 및 불러오기 (SharedPreferences) ---
   Future<void> _saveLayout() async {
     if (_rootNode == null) return;
     final prefs = await SharedPreferences.getInstance();
@@ -149,7 +155,9 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     });
   }
 
-  // --- Tree Helpers ---
+  // --- 트리 탐색 및 정리 헬퍼 ---
+
+  /// ID로 노드 찾기 (재귀 탐색)
   LayoutNode? _findNodeById(LayoutNode? current, String id) {
     if (current == null) return null;
     if (current.id == id) return current;
@@ -160,10 +168,13 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     return null;
   }
 
+  /// 빈 노드 제거 및 트리 구조 정리 (재귀)
   LayoutNode? _cleanTree(LayoutNode node) {
     if (node.type == NodeType.leaf) {
+      // 탭이 없는 잎 노드는 삭제 대상
       return node.tabs.isEmpty ? null : node;
     } else {
+      // 자식 노드 재귀 정리
       List<LayoutNode> newChildren = [];
       for (var child in node.children) {
         var cleanedChild = _cleanTree(child);
@@ -173,9 +184,10 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
       }
       node.children = newChildren;
 
-      if (node.children.isEmpty) return null;
-      if (node.children.length == 1) return node.children.first;
+      if (node.children.isEmpty) return null; // 자식이 없으면 삭제
+      if (node.children.length == 1) return node.children.first; // 자식이 하나면 해당 자식으로 대체 (불필요한 split 제거)
 
+      // 비율 배열 길이 동기화
       if (node.ratios != null && node.ratios!.length != node.children.length) {
         node.ratios = null;
       }
@@ -183,12 +195,12 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // [Fix 1] 탭 순서 변경 로직 수정 및 드래그 상태 초기화
-  // ---------------------------------------------------------------------------
+  // --- 탭 동작 핸들러 ---
+
+  /// 같은 패널 내에서 탭 순서 변경
   void _handleTabReorder(String nodeId, String tabId, int targetIndex) {
     // 1. 드래그 상태 강제 해제 (글로벌 버튼 숨김)
-    setState(() => _isDragging = false);
+    setState(() => _isDragging = false); // 드래그 종료 처리
 
     LayoutNode? node = _findNodeById(_rootNode, nodeId);
     if (node == null) return;
@@ -198,17 +210,19 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
 
     setState(() {
       // 2. 탭 이동 로직
+      // 기존 항목 삭제
       TabData tab = node.tabs.removeAt(oldIndex);
+      // 새로운 위치에 삽입
       node.tabs.insert(targetIndex, tab);
-
+      // 선택 index 갱신
       node.selectedTabIndex = targetIndex;
+
+      // 변경값 저장
       _saveLayout();
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // [Fix 2] 탭 드롭(분할/이동) 로직 수정 및 드래그 상태 초기화
-  // ---------------------------------------------------------------------------
+  /// 탭을 다른 패널로 이동하거나 화면 분할 처리
   void _handleTabDrop(String srcNodeId, String tabId, String targetNodeId,
       String action, {bool isRootDrop = false}) {
 
@@ -218,7 +232,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     LayoutNode? srcNode = _findNodeById(_rootNode, srcNodeId);
     if (srcNode == null) return;
 
-    // 자기 자신에게 드롭 시 방어 로직
+    // 자기 자신에게 센터 드롭이나 탭이 1개일 때의 불필요한 동작 방지
     if (!isRootDrop && srcNodeId == targetNodeId) {
       if (action == 'center') return;
       if (srcNode.tabs.length <= 1) return;
@@ -229,12 +243,13 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     TabData tabToMove = srcNode.tabs[tabIndex];
 
     setState(() {
+      // 1. 기존 노드에서 탭 제거
       srcNode.tabs.removeAt(tabIndex);
       if (srcNode.selectedTabIndex >= srcNode.tabs.length) {
         srcNode.selectedTabIndex = srcNode.tabs.isEmpty ? 0 : srcNode.tabs.length - 1;
       }
 
-      // 트리 정리
+      // 2. 트리 정리 (탭이 없어진 빈 노드 제거 등)
       if (isRootDrop || srcNodeId != targetNodeId) {
         LayoutNode? cleanedRoot = _cleanTree(_rootNode!);
         if (cleanedRoot == null) {
@@ -244,15 +259,18 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         }
       }
 
+      // 3. 새로운 위치에 탭 추가 또는 분할
       if (isRootDrop) {
-        _splitRoot(tabToMove, action);
+        _splitRoot(tabToMove, action); // 화면 전체 분할
       } else {
         LayoutNode? targetNode = _findNodeById(_rootNode, targetNodeId);
         if (targetNode != null) {
           if (action == 'center') {
+            // 기존 패널에 탭 추가
             targetNode.tabs.add(tabToMove);
             targetNode.selectedTabIndex = targetNode.tabs.length - 1;
           } else {
+            // 패널 분할 (상하좌우)
             _splitNode(targetNode, tabToMove, action);
           }
         }
@@ -261,6 +279,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     });
   }
 
+  /// 특정 노드를 분할하여 새 탭 배치
   void _splitNode(LayoutNode target, TabData newTab, String action) {
     LayoutNode existingChild = LayoutNode(
       id: _generateId(),
@@ -274,6 +293,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         tabs: [newTab],
         selectedTabIndex: 0);
 
+    // 타겟 노드를 Split 타입으로 변경하고 자식으로 기존 내용과 새 내용을 배치
     target.type = NodeType.split;
     target.tabs = [];
     target.ratios = null;
@@ -293,6 +313,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     }
   }
 
+  /// 화면 전체(루트)를 분할
   void _splitRoot(TabData newTab, String action) {
     LayoutNode oldRootContent = _rootNode!;
     LayoutNode newChild = LayoutNode(
@@ -334,8 +355,10 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
       ),
       body: Stack(
         children: [
+          // 재귀적으로 패널들을 그리는 메인 영역
           Positioned.fill(child: _buildRecursive(_rootNode!)),
 
+          // 드래그 중일 때만 표시되는 화면 가장자리 전역 분할 버튼
           if (_isDragging) ...[
             _GlobalSplitButton(
               alignment: Alignment.topCenter,
@@ -367,8 +390,10 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     );
   }
 
+  /// 트리를 순회하며 위젯 빌드
   Widget _buildRecursive(LayoutNode node) {
     if (node.type == NodeType.leaf) {
+      // 말단 노드: 실제 탭 화면 표시
       return _DockingPane(
         node: node,
         onTabDrop: (src, tabId, action) =>
@@ -384,6 +409,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
             _handleTabReorder(node.id, tabId, targetIndex),
       );
     } else {
+      // 분할 노드: MultiSplitView를 사용하여 화면 분할
       List<Widget> childrenWidgets =
       node.children.map((c) => _buildRecursive(c)).toList();
 
@@ -405,6 +431,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         controller: controller,
         builder: (context, area) => area.data as Widget,
         onDividerDragUpdate: (index) {
+          // 사용자가 분할 크기를 조절하면 비율 저장
           double totalFlex = controller.areas.fold(0.0, (sum, area) => sum + (area.flex ?? 0.0));
           if (totalFlex > 0) {
             node.ratios = controller.areas.map((a) => (a.flex ?? 0.0) / totalFlex).toList();
@@ -417,7 +444,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
 }
 
 // =============================================================================
-// 3. Global Split Button
+// 3. Global Split Button (화면 가장자리 분할 영역)
 // =============================================================================
 
 class _GlobalSplitButton extends StatelessWidget {
@@ -480,6 +507,7 @@ class _GlobalSplitButton extends StatelessWidget {
   }
 
   Widget _buildHighlight(String action, double thickness) {
+    // 액션에 따라 화면 가장자리에 파란색 하이라이트 표시
     if (action == 'top') {
       return Positioned(top: 0, left: -5000, right: -5000, height: thickness, child: Container(color: Colors.blueAccent));
     } else if (action == 'bottom') {
@@ -493,7 +521,7 @@ class _GlobalSplitButton extends StatelessWidget {
 }
 
 // =============================================================================
-// 4. Pane & Tab
+// 4. Pane & Tab (개별 패널 및 탭 위젯)
 // =============================================================================
 
 class _DockingPane extends StatefulWidget {
@@ -521,13 +549,11 @@ class _DockingPane extends StatefulWidget {
 
 class _DockingPaneState extends State<_DockingPane> {
   String? _hoverAction;
-  // Pane 전체가 아닌 컨텐츠 영역의 키로 사용하기 위해 변경 가능하나,
-  // 여기서는 DragTarget이 내부로 이동하므로 컨텍스트 찾기가 더 수월해집니다.
-  final GlobalKey _contentKey = GlobalKey();
+  final GlobalKey _contentKey = GlobalKey(); // 컨텐츠 영역의 좌표 계산을 위한 키
 
+  /// 드래그 위치에 따라 분할 액션(상하좌우, 센터) 판별
   void _updateHoverAction(Offset localPosition, Size size) {
-    // 1. 이제 좌표가 Content 영역 기준이므로 dy < 36 체크가 필요 없음
-    // 2. 중심점 및 거리 계산
+    // 중심점 및 거리 계산
     final Offset center = Offset(size.width / 2, size.height / 2);
     const double selectorRadius = 60;
     final double dist = (localPosition - center).distance;
@@ -544,6 +570,7 @@ class _DockingPaneState extends State<_DockingPane> {
     String newAction = 'center';
     const double centerZoneSize = 25;
 
+    // 중앙, 좌, 우, 상, 하 판별
     if (dx.abs() < centerZoneSize && dy.abs() < centerZoneSize) {
       newAction = 'center';
     } else {
@@ -561,11 +588,12 @@ class _DockingPaneState extends State<_DockingPane> {
 
   @override
   Widget build(BuildContext context) {
-    // DragTarget을 최상위에서 제거하고 Column 내부 구조를 변경
+    // Column을 사용하여 탭 헤더와 컨텐츠 영역을 명확히 분리
+    // 이로 인해 탭 헤더 드래그 시 중앙의 Selector 오버레이가 간섭하지 않음
     return Column(
       children: [
         // -------------------------------------------------------
-        // 1. 탭 헤더 영역 (순수한 탭 순서 변경 로직만 동작)
+        // 1. 탭 헤더 영역 (순서 변경 로직만 동작)
         // -------------------------------------------------------
         Container(
           height: 36,
@@ -601,14 +629,14 @@ class _DockingPaneState extends State<_DockingPane> {
         ),
 
         // -------------------------------------------------------
-        // 2. 컨텐츠 영역 (여기만 분할/합치기 DragTarget 적용)
+        // 2. 컨텐츠 영역 (분할/합치기 DragTarget 적용)
         // -------------------------------------------------------
         Expanded(
           child: DragTarget<DragPayload>(
             key: _contentKey,
             onWillAccept: (data) => data != null,
             onMove: (details) {
-              // DragTarget이 작아졌으므로 details.offset(전역)을 로컬로 변환해야 함
+              // 전역 좌표를 로컬 좌표로 변환하여 상대 위치 계산
               final RenderBox renderBox = _contentKey.currentContext?.findRenderObject() as RenderBox;
               final Size size = renderBox.size;
               final Offset localPos = renderBox.globalToLocal(details.offset);
@@ -638,7 +666,7 @@ class _DockingPaneState extends State<_DockingPane> {
                     ),
                   ),
 
-                  // 드래그 시 표시되는 하이라이트 및 Selector 오버레이
+                  // 드래그 시 중앙에 표시되는 방향 선택기(Selector) 오버레이
                   if (isHovering) ...[
                     Container(
                       decoration: BoxDecoration(
@@ -660,6 +688,7 @@ class _DockingPaneState extends State<_DockingPane> {
   }
 }
 
+/// 패널 중앙에 나타나는 분할 방향 선택 비주얼 (십자 모양 아이콘들)
 class _DockingSelectorVisual extends StatelessWidget {
   final String? highlightedAction;
   const _DockingSelectorVisual({this.highlightedAction});
@@ -708,6 +737,7 @@ class _DockingSelectorVisual extends StatelessWidget {
   }
 }
 
+/// 드래그 가능한 개별 탭 위젯 (드래그 소스이자 드롭 타겟)
 class _DraggableTab extends StatelessWidget {
   final String nodeId;
   final TabData tab;
@@ -731,9 +761,10 @@ class _DraggableTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. DragTarget을 가장 외부에 배치 (수락 역할)
+    // 1. DragTarget: 다른 탭이 이 탭 위로 드래그될 때 순서 변경 감지
     return DragTarget<DragPayload>(
       onWillAccept: (data) {
+        // 같은 노드 내의 다른 탭일 경우만 수락
         return data != null && data.sourceNodeId == nodeId && data.tabId != tab.id;
       },
       onAccept: (data) {
@@ -742,7 +773,7 @@ class _DraggableTab extends StatelessWidget {
       builder: (context, candidateData, rejectedData) {
         bool isHovering = candidateData.isNotEmpty;
 
-        // 2. Draggable (드래그 시작 역할)
+        // 2. Draggable: 이 탭 자체를 드래그 시작
         return Draggable<DragPayload>(
           data: DragPayload(nodeId, tab.id),
           onDragStarted: onDragStarted,
@@ -772,7 +803,7 @@ class _DraggableTab extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: isSelected ? Colors.white : Colors.transparent,
-        // 드롭 가능한 상태일 때 왼쪽에 파란색 바 표시
+        // 드롭 가능한 상태일 때 왼쪽에 파란색 바(인디케이터) 표시
         border: isHovering
             ? const Border(left: BorderSide(color: Colors.blue, width: 3))
             : null,
