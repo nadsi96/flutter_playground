@@ -609,33 +609,60 @@ class _DockingPaneState extends State<_DockingPane> {
   final GlobalKey _contentKey = GlobalKey();
 
   /// 드래그 위치에 따라 분할 액션(상하좌우, 센터) 판별
+  /// 1. 중앙 Selector 근처에서는 아이콘 위치에 따라 동작
+  /// 2. 그 외 영역에서는 가장자리(Edge) 감지 및 센터(Center) 동작
   void _updateHoverAction(Offset localPosition, Size size) {
-    // 중심점 및 거리 계산
     final Offset center = Offset(size.width / 2, size.height / 2);
-    const double selectorRadius = 60;
-    final double dist = (localPosition - center).distance;
 
-    // Selector 범위를 벗어나면 액션 초기화
-    if (dist > selectorRadius * 1.5) {
-      if (_hoverAction != null) setState(() => _hoverAction = null);
-      return;
+    // --- 1. 중앙 아이콘(Selector) 영역 우선 감지 ---
+    // Selector의 반지름(약 60~70px) 이내에 마우스가 있다면
+    // 중앙 selector 동작 우선
+    const double selectorRadius = 70.0;
+    final double distFromCenter = (localPosition - center).distance;
+
+    if (distFromCenter < selectorRadius) {
+      double dx = localPosition.dx - center.dx;
+      double dy = localPosition.dy - center.dy;
+      const double centerZoneSize = 25.0; // 중앙 '합치기' 네모 크기
+
+      if (dx.abs() < centerZoneSize && dy.abs() < centerZoneSize) {
+        // 정중앙
+        if (_hoverAction != 'center') setState(() => _hoverAction = 'center');
+      } else {
+        // Selector 내의 상하좌우 아이콘 판별
+        String newAction;
+        if (dx.abs() > dy.abs()) {
+          newAction = dx > 0 ? 'right' : 'left';
+        } else {
+          newAction = dy > 0 ? 'bottom' : 'top';
+        }
+        if (_hoverAction != newAction) setState(() => _hoverAction = newAction);
+      }
+      return; // 중앙 로직 처리 완료 시 리턴
     }
 
-    double dx = localPosition.dx - center.dx;
-    double dy = localPosition.dy - center.dy;
+    // --- 2. 바깥 영역 (border 근처 감지) 로직 ---
+    // Selector 범위 밖에서 수행
 
-    String newAction = 'center';
-    const double centerZoneSize = 25;
+    // 테두리 근처 감지 임계값 (패널 크기의 30% 혹은 최대 100px)
+    double thresholdX = (size.width * 0.3).clamp(0.0, 100.0);
+    double thresholdY = (size.height * 0.3).clamp(0.0, 100.0);
 
-    // 중앙, 좌, 우, 상, 하 판별
-    if (dx.abs() < centerZoneSize && dy.abs() < centerZoneSize) {
-      newAction = 'center';
-    } else {
-      if (dx.abs() > dy.abs()) {
-        newAction = dx > 0 ? 'right' : 'left';
-      } else {
-        newAction = dy > 0 ? 'bottom' : 'top';
-      }
+    double distLeft = localPosition.dx;
+    double distRight = size.width - localPosition.dx;
+    double distTop = localPosition.dy;
+    double distBottom = size.height - localPosition.dy;
+
+    double minH = distLeft < distRight ? distLeft : distRight;
+    double minV = distTop < distBottom ? distTop : distBottom;
+
+    String newAction = 'center'; // 기본값은 합치기
+
+    // Border 근처인지 확인
+    if (minH < thresholdX && minH <= minV) {
+      newAction = distLeft < distRight ? 'left' : 'right';
+    } else if (minV < thresholdY && minV <= minH) {
+      newAction = distTop < distBottom ? 'top' : 'bottom';
     }
 
     if (_hoverAction != newAction) {
@@ -648,7 +675,7 @@ class _DockingPaneState extends State<_DockingPane> {
     return Column(
       children: [
         // -------------------------------------------------------
-        // 1. 탭 헤더 영역 (순서 변경 로직만 동작)
+        // 1. 탭 헤더
         // -------------------------------------------------------
         Container(
           height: 36,
@@ -689,7 +716,6 @@ class _DockingPaneState extends State<_DockingPane> {
           child: DragTarget<DragPayload>(
             key: _contentKey,
             onWillAccept: (data) => data != null,
-            // details.offset(위젯 위치)가 아닌 globalPointerPosition(마우스 위치) 사용
             onMove: (details) {
               final RenderBox renderBox =
               _contentKey.currentContext?.findRenderObject() as RenderBox;
@@ -713,44 +739,79 @@ class _DockingPaneState extends State<_DockingPane> {
 
               return Stack(
                 children: [
-                  // 실제 컨텐츠 내용
+                  // (1) 실제 컨텐츠
                   Container(
                     color: Colors.white,
                     alignment: Alignment.center,
                     child: widget.node.tabs.isEmpty
                         ? const Text("Empty")
                         : Text(
-                      widget
-                          .node
-                          .tabs[widget.node.selectedTabIndex]
-                          .title,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        color: Colors.grey,
-                      ),
+                      widget.node.tabs[widget.node.selectedTabIndex].title,
+                      style: const TextStyle(fontSize: 20, color: Colors.grey),
                     ),
                   ),
 
-                  // 드래그 시 중앙에 표시되는 방향 선택기(Selector) 오버레이
-                  if (isHovering) ...[
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.blueAccent, width: 2),
-                        color: Colors.blueAccent.withOpacity(0.05),
-                      ),
+                  // (2) 하이라이트 오버레이 (배경 및 테두리)
+                  if (isHovering && _hoverAction != null)
+                    Positioned.fill(
+                      child: _buildDropOverlay(_hoverAction!),
                     ),
+
+                  // (3) 중앙 셀렉터 아이콘
+                  if (isHovering)
                     Center(
                       child: _DockingSelectorVisual(
                         highlightedAction: _hoverAction,
                       ),
                     ),
-                  ],
                 ],
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  /// 드롭 위치에 따른 오버레이 디자인 (테두리 하이라이트 등)
+  Widget _buildDropOverlay(String action) {
+    const Color baseColor = Colors.blueAccent;
+    const double thinWidth = 2.0;
+    const double thickWidth = 8.0;
+
+    // 센터일 때는 전체적으로 은은한 파란색
+    if (action == 'center') {
+      return Container(
+        decoration: BoxDecoration(
+          color: baseColor.withOpacity(0.1),
+          border: Border.all(color: baseColor, width: thinWidth),
+        ),
+      );
+    }
+
+    // 상하좌우일 때는 해당 방향의 테두리만 두껍게 강조
+    return Container(
+      decoration: BoxDecoration(
+        color: baseColor.withOpacity(0.05),
+        border: Border(
+          top: BorderSide(
+            color: baseColor,
+            width: action == 'top' ? thickWidth : thinWidth,
+          ),
+          bottom: BorderSide(
+            color: baseColor,
+            width: action == 'bottom' ? thickWidth : thinWidth,
+          ),
+          left: BorderSide(
+            color: baseColor,
+            width: action == 'left' ? thickWidth : thinWidth,
+          ),
+          right: BorderSide(
+            color: baseColor,
+            width: action == 'right' ? thickWidth : thinWidth,
+          ),
+        ),
+      ),
     );
   }
 }
