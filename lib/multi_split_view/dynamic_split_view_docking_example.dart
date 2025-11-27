@@ -5,6 +5,15 @@ import 'package:multi_split_view/multi_split_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // =============================================================================
+// 0. Global Variables (전역 변수)
+// =============================================================================
+
+/// 현재 마우스 포인터의 화면상 절대 좌표 저장
+/// DragTarget의 details.offset은 드래그 중인 위젯(Feedback)의 좌상단 좌표를 반환
+/// 정확한 마우스 위치를 기준으로 판단하기 위해 사용
+Offset globalPointerPosition = Offset.zero;
+
+// =============================================================================
 // 1. Data Models (데이터 모델)
 // =============================================================================
 
@@ -44,7 +53,7 @@ class LayoutNode {
     List<TabData>? tabs,
     this.selectedTabIndex = 0,
   }) : children = children ?? [],
-       tabs = tabs ?? [];
+        tabs = tabs ?? [];
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -129,12 +138,12 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
   Future<void> _saveLayout() async {
     if (_rootNode == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('saved_layout_v12', jsonEncode(_rootNode!.toJson()));
+    await prefs.setString('saved_layout_v13', jsonEncode(_rootNode!.toJson()));
   }
 
   Future<void> _loadLayout() async {
     final prefs = await SharedPreferences.getInstance();
-    String? json = prefs.getString('saved_layout_v12');
+    String? json = prefs.getString('saved_layout_v13');
     if (json != null) {
       try {
         setState(() => _rootNode = LayoutNode.fromJson(jsonDecode(json)));
@@ -192,6 +201,10 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
       if (node.children.isEmpty) return null;
 
       // 비율 배열 길이 동기화
+      if (node.children.length == 1) {
+        return node.children.first;
+      }
+
       if (node.ratios != null && node.ratios!.length != node.children.length) {
         node.ratios = null;
       }
@@ -228,12 +241,12 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
 
   /// 탭을 다른 패널로 이동하거나 화면 분할 처리
   void _handleTabDrop(
-    String srcNodeId,
-    String tabId,
-    String targetNodeId,
-    String action, {
-    bool isRootDrop = false,
-  }) {
+      String srcNodeId,
+      String tabId,
+      String targetNodeId,
+      String action, {
+        bool isRootDrop = false,
+      }) {
     // 1. 드래그 상태 강제 해제
     setState(() => _isDragging = false);
 
@@ -363,50 +376,56 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
             icon: const Icon(Icons.refresh),
             onPressed: () {
               SharedPreferences.getInstance().then(
-                (p) => p.remove('saved_layout_v12'),
+                    (p) => p.remove('saved_layout_v13'),
               );
               _initDefault();
             },
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          // 재귀적으로 패널들을 그리는 메인 영역
-          Positioned.fill(child: _buildRecursive(_rootNode!)),
+      // Listener로 감싸서 드래그 중 마우스의 전역 좌표를 추적
+      body: Listener(
+        onPointerMove: (event) {
+          globalPointerPosition = event.position;
+        },
+        child: Stack(
+          children: [
+            // 재귀적으로 패널들을 그리는 메인 영역
+            Positioned.fill(child: _buildRecursive(_rootNode!)),
 
-          // 드래그 중일 때만 표시되는 화면 가장자리 전역 분할 버튼
-          if (_isDragging) ...[
-            _GlobalSplitButton(
-              alignment: Alignment.topCenter,
-              icon: Icons.keyboard_arrow_up,
-              action: 'top',
-              onDrop: (src, tab) =>
-                  _handleTabDrop(src, tab, '', 'top', isRootDrop: true),
-            ),
-            _GlobalSplitButton(
-              alignment: Alignment.bottomCenter,
-              icon: Icons.keyboard_arrow_down,
-              action: 'bottom',
-              onDrop: (src, tab) =>
-                  _handleTabDrop(src, tab, '', 'bottom', isRootDrop: true),
-            ),
-            _GlobalSplitButton(
-              alignment: Alignment.centerLeft,
-              icon: Icons.keyboard_arrow_left,
-              action: 'left',
-              onDrop: (src, tab) =>
-                  _handleTabDrop(src, tab, '', 'left', isRootDrop: true),
-            ),
-            _GlobalSplitButton(
-              alignment: Alignment.centerRight,
-              icon: Icons.keyboard_arrow_right,
-              action: 'right',
-              onDrop: (src, tab) =>
-                  _handleTabDrop(src, tab, '', 'right', isRootDrop: true),
-            ),
+            // 드래그 중일 때만 표시되는 화면 가장자리 전역 분할 버튼
+            if (_isDragging) ...[
+              _GlobalSplitButton(
+                alignment: Alignment.topCenter,
+                icon: Icons.keyboard_arrow_up,
+                action: 'top',
+                onDrop: (src, tab) =>
+                    _handleTabDrop(src, tab, '', 'top', isRootDrop: true),
+              ),
+              _GlobalSplitButton(
+                alignment: Alignment.bottomCenter,
+                icon: Icons.keyboard_arrow_down,
+                action: 'bottom',
+                onDrop: (src, tab) =>
+                    _handleTabDrop(src, tab, '', 'bottom', isRootDrop: true),
+              ),
+              _GlobalSplitButton(
+                alignment: Alignment.centerLeft,
+                icon: Icons.keyboard_arrow_left,
+                action: 'left',
+                onDrop: (src, tab) =>
+                    _handleTabDrop(src, tab, '', 'left', isRootDrop: true),
+              ),
+              _GlobalSplitButton(
+                alignment: Alignment.centerRight,
+                icon: Icons.keyboard_arrow_right,
+                action: 'right',
+                onDrop: (src, tab) =>
+                    _handleTabDrop(src, tab, '', 'right', isRootDrop: true),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -457,7 +476,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
           // 사용자가 분할 크기를 조절하면 비율 저장
           double totalFlex = controller.areas.fold(
             0.0,
-            (sum, area) => sum + (area.flex ?? 0.0),
+                (sum, area) => sum + (area.flex ?? 0.0),
           );
           if (totalFlex > 0) {
             node.ratios = controller.areas
@@ -648,8 +667,6 @@ class _DockingPaneState extends State<_DockingPane> {
 
   @override
   Widget build(BuildContext context) {
-    // Column을 사용하여 탭 헤더와 컨텐츠 영역을 명확히 분리
-    // 이로 인해 탭 헤더 드래그 시 중앙의 Selector 오버레이가 간섭하지 않음
     return Column(
       children: [
         // -------------------------------------------------------
@@ -694,12 +711,15 @@ class _DockingPaneState extends State<_DockingPane> {
           child: DragTarget<DragPayload>(
             key: _contentKey,
             onWillAccept: (data) => data != null,
+            // details.offset(위젯 위치)가 아닌 globalPointerPosition(마우스 위치) 사용
             onMove: (details) {
-              // 전역 좌표를 로컬 좌표로 변환하여 상대 위치 계산
               final RenderBox renderBox =
-                  _contentKey.currentContext?.findRenderObject() as RenderBox;
+              _contentKey.currentContext?.findRenderObject() as RenderBox;
               final Size size = renderBox.size;
-              final Offset localPos = renderBox.globalToLocal(details.offset);
+
+              // 마우스의 전역 좌표를 이 컨테이너의 로컬 좌표로 변환
+              final Offset localPos =
+              renderBox.globalToLocal(globalPointerPosition);
               _updateHoverAction(localPos, size);
             },
             onLeave: (_) => setState(() => _hoverAction = null),
@@ -722,15 +742,15 @@ class _DockingPaneState extends State<_DockingPane> {
                     child: widget.node.tabs.isEmpty
                         ? const Text("Empty")
                         : Text(
-                            widget
-                                .node
-                                .tabs[widget.node.selectedTabIndex]
-                                .title,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              color: Colors.grey,
-                            ),
-                          ),
+                      widget
+                          .node
+                          .tabs[widget.node.selectedTabIndex]
+                          .title,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        color: Colors.grey,
+                      ),
+                    ),
                   ),
 
                   // 드래그 시 중앙에 표시되는 방향 선택기(Selector) 오버레이
@@ -799,11 +819,11 @@ class _DockingSelectorVisual extends StatelessWidget {
   }
 
   Widget _buildIcon(
-    String action,
-    IconData icon,
-    double size, {
-    bool isCenter = false,
-  }) {
+      String action,
+      IconData icon,
+      double size, {
+        bool isCenter = false,
+      }) {
     bool isHighlighted = highlightedAction == action;
     return Container(
       width: size,
