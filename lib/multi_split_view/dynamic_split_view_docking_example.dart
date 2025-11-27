@@ -5,15 +5,6 @@ import 'package:multi_split_view/multi_split_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // =============================================================================
-// 0. Global Variables (전역 변수)
-// =============================================================================
-
-/// 현재 마우스 포인터의 화면상 절대 좌표 저장
-/// DragTarget의 details.offset은 드래그 중인 위젯(Feedback)의 좌상단 좌표를 반환
-/// 정확한 마우스 위치를 기준으로 판단하기 위해 사용
-Offset globalPointerPosition = Offset.zero;
-
-// =============================================================================
 // 1. Data Models (데이터 모델)
 // =============================================================================
 
@@ -275,15 +266,11 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
       // 2. 트리 정리 (탭이 없어진 빈 노드 제거 등)
       if (isRootDrop || srcNodeId != targetNodeId) {
         LayoutNode? cleanedRoot = _cleanTree(_rootNode!);
-        if (cleanedRoot == null) {
-          _rootNode = LayoutNode(
-            id: _generateId(),
-            type: NodeType.leaf,
-            tabs: [],
-          );
-        } else {
-          _rootNode = cleanedRoot;
-        }
+        _rootNode = cleanedRoot ?? LayoutNode(
+          id: _generateId(),
+          type: NodeType.leaf,
+          tabs: [],
+        );
       }
 
       // 3. 새로운 위치에 탭 추가 또는 분할
@@ -376,56 +363,47 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
             icon: const Icon(Icons.refresh),
             onPressed: () {
               SharedPreferences.getInstance().then(
-                    (p) => p.remove('saved_layout_v13'),
+                    (p) => p.remove('saved_layout_v14'),
               );
               _initDefault();
             },
           ),
         ],
       ),
-      // Listener로 감싸서 드래그 중 마우스의 전역 좌표를 추적
-      body: Listener(
-        onPointerMove: (event) {
-          globalPointerPosition = event.position;
-        },
-        child: Stack(
-          children: [
-            // 재귀적으로 패널들을 그리는 메인 영역
-            Positioned.fill(child: _buildRecursive(_rootNode!)),
-
-            // 드래그 중일 때만 표시되는 화면 가장자리 전역 분할 버튼
-            if (_isDragging) ...[
-              _GlobalSplitButton(
-                alignment: Alignment.topCenter,
-                icon: Icons.keyboard_arrow_up,
-                action: 'top',
-                onDrop: (src, tab) =>
-                    _handleTabDrop(src, tab, '', 'top', isRootDrop: true),
-              ),
-              _GlobalSplitButton(
-                alignment: Alignment.bottomCenter,
-                icon: Icons.keyboard_arrow_down,
-                action: 'bottom',
-                onDrop: (src, tab) =>
-                    _handleTabDrop(src, tab, '', 'bottom', isRootDrop: true),
-              ),
-              _GlobalSplitButton(
-                alignment: Alignment.centerLeft,
-                icon: Icons.keyboard_arrow_left,
-                action: 'left',
-                onDrop: (src, tab) =>
-                    _handleTabDrop(src, tab, '', 'left', isRootDrop: true),
-              ),
-              _GlobalSplitButton(
-                alignment: Alignment.centerRight,
-                icon: Icons.keyboard_arrow_right,
-                action: 'right',
-                onDrop: (src, tab) =>
-                    _handleTabDrop(src, tab, '', 'right', isRootDrop: true),
-              ),
-            ],
+      body: Stack(
+        children: [
+          Positioned.fill(child: _buildRecursive(_rootNode!)),
+          if (_isDragging) ...[
+            _GlobalSplitButton(
+              alignment: Alignment.topCenter,
+              icon: Icons.keyboard_arrow_up,
+              action: 'top',
+              onDrop: (src, tab) =>
+                  _handleTabDrop(src, tab, '', 'top', isRootDrop: true),
+            ),
+            _GlobalSplitButton(
+              alignment: Alignment.bottomCenter,
+              icon: Icons.keyboard_arrow_down,
+              action: 'bottom',
+              onDrop: (src, tab) =>
+                  _handleTabDrop(src, tab, '', 'bottom', isRootDrop: true),
+            ),
+            _GlobalSplitButton(
+              alignment: Alignment.centerLeft,
+              icon: Icons.keyboard_arrow_left,
+              action: 'left',
+              onDrop: (src, tab) =>
+                  _handleTabDrop(src, tab, '', 'left', isRootDrop: true),
+            ),
+            _GlobalSplitButton(
+              alignment: Alignment.centerRight,
+              icon: Icons.keyboard_arrow_right,
+              action: 'right',
+              onDrop: (src, tab) =>
+                  _handleTabDrop(src, tab, '', 'right', isRootDrop: true),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -628,7 +606,7 @@ class _DockingPane extends StatefulWidget {
 
 class _DockingPaneState extends State<_DockingPane> {
   String? _hoverAction;
-  final GlobalKey _contentKey = GlobalKey(); // 컨텐츠 영역의 좌표 계산을 위한 키
+  final GlobalKey _contentKey = GlobalKey();
 
   /// 드래그 위치에 따라 분할 액션(상하좌우, 센터) 판별
   void _updateHoverAction(Offset localPosition, Size size) {
@@ -717,9 +695,9 @@ class _DockingPaneState extends State<_DockingPane> {
               _contentKey.currentContext?.findRenderObject() as RenderBox;
               final Size size = renderBox.size;
 
-              // 마우스의 전역 좌표를 이 컨테이너의 로컬 좌표로 변환
-              final Offset localPos =
-              renderBox.globalToLocal(globalPointerPosition);
+              // pointerDragAnchorStrategy
+              // details.offset이 마우스 커서 좌표
+              final Offset localPos = renderBox.globalToLocal(details.offset);
               _updateHoverAction(localPos, size);
             },
             onLeave: (_) => setState(() => _hoverAction = null),
@@ -855,6 +833,10 @@ class _DraggableTab extends StatelessWidget {
   final VoidCallback onDragEnded;
   final Function(String tabId) onReorder;
 
+  // 피드백 위젯의 크기 상수 (중심점 계산용)
+  static const double _feedbackWidth = 150;
+  static const double _feedbackHeight = 40;
+
   const _DraggableTab({
     required this.nodeId,
     required this.tab,
@@ -888,23 +870,35 @@ class _DraggableTab extends StatelessWidget {
           onDragStarted: onDragStarted,
           onDraggableCanceled: (_, __) => onDragEnded(),
           onDragEnd: (_) => onDragEnded(),
-          feedback: Material(
-            color: Colors.transparent,
-            child: Container(
-              width: 150,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(4),
-                boxShadow: const [
-                  BoxShadow(blurRadius: 5, color: Colors.black26),
-                ],
-                border: Border.all(color: Colors.blue),
-              ),
-              child: Text(
-                tab.title,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+
+          // 드래그 좌표 기준 마우스 포인터로 설정
+          // DragTarget의 details.offset이 마우스 커서 좌표가 됨
+          dragAnchorStrategy: pointerDragAnchorStrategy,
+
+          // 피드백 위젯 중심점 조정
+          // pointerDragAnchorStrategy는 피드백의 좌상단을 마우스에 맞춤
+          // 피드백 위젯을 크기의 절반만큼 이동시켜
+          // 커서가 위젯 중앙에 위치하도록 조정
+          feedback: Transform.translate(
+            offset: const Offset(-_feedbackWidth / 2, -_feedbackHeight / 2),
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: _feedbackWidth,
+                height: _feedbackHeight,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(4),
+                  boxShadow: const [
+                    BoxShadow(blurRadius: 5, color: Colors.black26),
+                  ],
+                  border: Border.all(color: Colors.blue),
+                ),
+                child: Text(
+                  tab.title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ),
