@@ -24,6 +24,10 @@ const double BTN_GLOBAL_SPLIT_HIGHLIGHT_THICKNESS = 6;
 // text 크기
 const double TAB_TITLE_FONT_SIZE = 10;
 
+// 영역 분할 버튼
+const double BTN_DOCKING_SELECTOR_SIZE = 40;
+const double BTN_DOCKING_SELECOTR_GAP = 4;
+
 // =============================================================================
 // 1. Data Models (데이터 모델)
 // =============================================================================
@@ -633,21 +637,28 @@ class _DockingPaneState extends State<_DockingPane> {
     final Offset center = Offset(size.width / 2, size.height / 2);
 
     // --- 1. 중앙 아이콘(Selector) 영역 우선 감지 ---
-    // Selector의 반지름(약 60~70px) 이내에 마우스가 있다면
+    // Selector의 반지름 이내에 마우스가 있다면
+    // (버튼 1개(상/하/좌/우) 크기 + 버튼 크기/2 (중앙버튼)) + (버튼 gap 및 padding)
     // 중앙 selector 동작 우선
-    const double selectorRadius = 70.0;
+    const double selectorRadius = (BTN_DOCKING_SELECTOR_SIZE + BTN_DOCKING_SELECTOR_SIZE/2) + BTN_DOCKING_SELECOTR_GAP;
     final double distFromCenter = (localPosition - center).distance;
 
     if (distFromCenter < selectorRadius) {
       double dx = localPosition.dx - center.dx;
       double dy = localPosition.dy - center.dy;
-      const double centerZoneSize = 25.0; // 중앙 '합치기' 네모 크기
+      const double centerZoneSize = BTN_DOCKING_SELECTOR_SIZE/2 + BTN_DOCKING_SELECOTR_GAP; // 중앙 '합치기' 네모 크기
 
       if (dx.abs() < centerZoneSize && dy.abs() < centerZoneSize) {
         // 정중앙
         if (_hoverAction != 'center') setState(() => _hoverAction = 'center');
       } else {
         // Selector 내의 상하좌우 아이콘 판별
+        //   ______
+        //  (\    /)
+        // (  \  /  )
+        // (  /  \  )
+        //  (/    \)
+        //   ------
         String newAction;
         if (dx.abs() > dy.abs()) {
           newAction = dx > 0 ? 'right' : 'left';
@@ -841,8 +852,6 @@ class _DockingSelectorVisual extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double boxSize = 40;
-    const double gap = 4;
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -855,20 +864,20 @@ class _DockingSelectorVisual extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildIcon('top', Icons.arrow_drop_up, boxSize),
-          const SizedBox(height: gap),
+          _buildIcon('top', Icons.arrow_drop_up, BTN_DOCKING_SELECTOR_SIZE),
+          const SizedBox(height: BTN_DOCKING_SELECOTR_GAP),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildIcon('left', Icons.arrow_left, boxSize),
-              const SizedBox(width: gap),
-              _buildIcon('center', Icons.stop_rounded, boxSize, isCenter: true),
-              const SizedBox(width: gap),
-              _buildIcon('right', Icons.arrow_right, boxSize),
+              _buildIcon('left', Icons.arrow_left, BTN_DOCKING_SELECTOR_SIZE),
+              const SizedBox(width: BTN_DOCKING_SELECOTR_GAP),
+              _buildIcon('center', Icons.stop_rounded, BTN_DOCKING_SELECTOR_SIZE, isCenter: true),
+              const SizedBox(width: BTN_DOCKING_SELECOTR_GAP),
+              _buildIcon('right', Icons.arrow_right, BTN_DOCKING_SELECTOR_SIZE),
             ],
           ),
-          const SizedBox(height: gap),
-          _buildIcon('bottom', Icons.arrow_drop_down, boxSize),
+          const SizedBox(height: BTN_DOCKING_SELECOTR_GAP),
+          _buildIcon('bottom', Icons.arrow_drop_down, BTN_DOCKING_SELECTOR_SIZE),
         ],
       ),
     );
