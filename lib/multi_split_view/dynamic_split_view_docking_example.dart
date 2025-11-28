@@ -4,6 +4,26 @@ import 'package:flutter/material.dart';
 import 'package:multi_split_view/multi_split_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+
+const APP_BACKGROUND_COLOR = Color(0xFFF0F2F5);
+const GENIE_ACCENT_COLOR = Color(0xFF52C2DF);
+const GENIE_ACCENT_COLOR_OP05 = Color.fromRGBO(82, 194, 223, 0.05);
+const GENIE_ACCENT_COLOR_OP10 = Color.fromRGBO(82, 194, 223, 0.1);
+const GENIE_ACCENT_COLOR_OP30 = Color.fromRGBO(82, 194, 223, 0.3);
+const ACCENT_PURPLE = Color(0xFF50CDEC);
+const ACCENT_PURPLE_SUB = Color(0xFF3BB8E0);
+const ACCENT_PURPLE_HOVER = Color(0xFF5AC3E8);
+const ACCENT_PURPLE_ACTIVE = Color(0xFF329FC4);
+
+// 전체영역 분할 버튼 크기
+const double BTN_GLOBAL_SPLIT_SIZE = 40;
+// 전체영역 분할 테두리 하이라이트 두께
+const double BTN_GLOBAL_SPLIT_HIGHLIGHT_THICKNESS = 6;
+
+// tab
+// text 크기
+const double TAB_TITLE_FONT_SIZE = 10;
+
 // =============================================================================
 // 1. Data Models (데이터 모델)
 // =============================================================================
@@ -355,7 +375,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     if (_rootNode == null) return const Scaffold();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: APP_BACKGROUND_COLOR,
       appBar: AppBar(
         title: const Text('Docking Layout'),
         actions: [
@@ -487,14 +507,12 @@ class _GlobalSplitButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double buttonSize = 40;
-    const double highlightThickness = 6;
 
     return Align(
       alignment: alignment,
-      child: Container(
-        width: buttonSize,
-        height: buttonSize,
+      child: SizedBox(
+        width: BTN_GLOBAL_SPLIT_SIZE,
+        height: BTN_GLOBAL_SPLIT_SIZE,
         child: DragTarget<DragPayload>(
           onWillAccept: (_) => true,
           onAccept: (data) => onDrop(data.sourceNodeId, data.tabId),
@@ -504,13 +522,13 @@ class _GlobalSplitButton extends StatelessWidget {
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
-                if (isHovering) _buildHighlight(action, highlightThickness),
+                if (isHovering) _buildHighlight(action, BTN_GLOBAL_SPLIT_HIGHLIGHT_THICKNESS),
                 Container(
-                  width: buttonSize,
-                  height: buttonSize,
+                  width: BTN_GLOBAL_SPLIT_SIZE,
+                  height: BTN_GLOBAL_SPLIT_SIZE,
                   decoration: BoxDecoration(
                     color: isHovering
-                        ? Colors.blue
+                        ? ACCENT_PURPLE
                         : Colors.white.withOpacity(0.9),
                     shape: BoxShape.circle,
                     boxShadow: [
@@ -522,7 +540,7 @@ class _GlobalSplitButton extends StatelessWidget {
                     ],
                     border: Border.all(
                       color: isHovering
-                          ? Colors.blue.shade900
+                          ? ACCENT_PURPLE_ACTIVE
                           : Colors.grey.shade300,
                     ),
                   ),
@@ -547,7 +565,7 @@ class _GlobalSplitButton extends StatelessWidget {
         left: -5000,
         right: -5000,
         height: thickness,
-        child: Container(color: Colors.blueAccent),
+        child: Container(color: ACCENT_PURPLE),
       );
     } else if (action == 'bottom') {
       return Positioned(
@@ -555,7 +573,7 @@ class _GlobalSplitButton extends StatelessWidget {
         left: -5000,
         right: -5000,
         height: thickness,
-        child: Container(color: Colors.blueAccent),
+        child: Container(color: ACCENT_PURPLE),
       );
     } else if (action == 'left') {
       return Positioned(
@@ -563,7 +581,7 @@ class _GlobalSplitButton extends StatelessWidget {
         top: -5000,
         bottom: -5000,
         width: thickness,
-        child: Container(color: Colors.blueAccent),
+        child: Container(color: ACCENT_PURPLE),
       );
     } else {
       return Positioned(
@@ -571,7 +589,7 @@ class _GlobalSplitButton extends StatelessWidget {
         top: -5000,
         bottom: -5000,
         width: thickness,
-        child: Container(color: Colors.blueAccent),
+        child: Container(color: ACCENT_PURPLE),
       );
     }
   }
@@ -644,9 +662,9 @@ class _DockingPaneState extends State<_DockingPane> {
     // --- 2. 바깥 영역 (border 근처 감지) 로직 ---
     // Selector 범위 밖에서 수행
 
-    // 테두리 근처 감지 임계값 (패널 크기의 30% 혹은 최대 100px)
-    double thresholdX = (size.width * 0.3).clamp(0.0, 100.0);
-    double thresholdY = (size.height * 0.3).clamp(0.0, 100.0);
+    // 테두리 근처 감지 임계값 10px
+    double thresholdX = 15;
+    double thresholdY = 15;
 
     double distLeft = localPosition.dx;
     double distRight = size.width - localPosition.dx;
@@ -775,7 +793,6 @@ class _DockingPaneState extends State<_DockingPane> {
 
   /// 드롭 위치에 따른 오버레이 디자인 (테두리 하이라이트 등)
   Widget _buildDropOverlay(String action) {
-    const Color baseColor = Colors.blueAccent;
     const double thinWidth = 2.0;
     const double thickWidth = 8.0;
 
@@ -783,8 +800,8 @@ class _DockingPaneState extends State<_DockingPane> {
     if (action == 'center') {
       return Container(
         decoration: BoxDecoration(
-          color: baseColor.withOpacity(0.1),
-          border: Border.all(color: baseColor, width: thinWidth),
+          color: GENIE_ACCENT_COLOR_OP10,
+          border: Border.all(color: GENIE_ACCENT_COLOR, width: thinWidth),
         ),
       );
     }
@@ -792,22 +809,22 @@ class _DockingPaneState extends State<_DockingPane> {
     // 상하좌우일 때는 해당 방향의 테두리만 두껍게 강조
     return Container(
       decoration: BoxDecoration(
-        color: baseColor.withOpacity(0.05),
+        color: GENIE_ACCENT_COLOR_OP05,
         border: Border(
           top: BorderSide(
-            color: baseColor,
+            color: GENIE_ACCENT_COLOR,
             width: action == 'top' ? thickWidth : thinWidth,
           ),
           bottom: BorderSide(
-            color: baseColor,
+            color: GENIE_ACCENT_COLOR,
             width: action == 'bottom' ? thickWidth : thinWidth,
           ),
           left: BorderSide(
-            color: baseColor,
+            color: GENIE_ACCENT_COLOR,
             width: action == 'left' ? thickWidth : thinWidth,
           ),
           right: BorderSide(
-            color: baseColor,
+            color: GENIE_ACCENT_COLOR,
             width: action == 'right' ? thickWidth : thinWidth,
           ),
         ),
@@ -868,10 +885,10 @@ class _DockingSelectorVisual extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: isHighlighted ? Colors.blue : Colors.grey.shade300,
+        color: isHighlighted ? ACCENT_PURPLE : Colors.grey.shade300,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: isHighlighted ? Colors.blue.shade900 : Colors.grey.shade400,
+          color: isHighlighted ? ACCENT_PURPLE_ACTIVE : Colors.grey.shade400,
         ),
       ),
       child: Icon(
@@ -895,8 +912,8 @@ class _DraggableTab extends StatelessWidget {
   final Function(String tabId) onReorder;
 
   // 피드백 위젯의 크기 상수 (중심점 계산용)
-  static const double _feedbackWidth = 150;
-  static const double _feedbackHeight = 40;
+  static const double _feedbackWidth = 100;
+  static const double _feedbackHeight = 36;
 
   const _DraggableTab({
     required this.nodeId,
@@ -954,11 +971,14 @@ class _DraggableTab extends StatelessWidget {
                   boxShadow: const [
                     BoxShadow(blurRadius: 5, color: Colors.black26),
                   ],
-                  border: Border.all(color: Colors.blue),
+                  border: Border.all(color: GENIE_ACCENT_COLOR),
                 ),
                 child: Text(
                   tab.title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: TAB_TITLE_FONT_SIZE,
+                  ),
                 ),
               ),
             ),
@@ -983,13 +1003,14 @@ class _DraggableTab extends StatelessWidget {
         color: isSelected ? Colors.white : Colors.transparent,
         // 드롭 가능한 상태일 때 왼쪽에 파란색 바(인디케이터) 표시
         border: isHovering
-            ? const Border(left: BorderSide(color: Colors.blue, width: 3))
+            ? const Border(left: BorderSide(color: GENIE_ACCENT_COLOR, width: 3))
             : null,
       ),
       child: Text(
         tab.title,
         style: TextStyle(
-          color: isSelected ? Colors.blue : Colors.black,
+          color: isSelected ? GENIE_ACCENT_COLOR : Colors.black,
+          fontSize: TAB_TITLE_FONT_SIZE,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),
