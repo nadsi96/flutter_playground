@@ -482,24 +482,31 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         areas: areas,
       );
 
-      return MultiSplitView(
-        key: ValueKey(node.id),
-        axis: node.axis!,
-        controller: controller,
-        builder: (context, area) => area.data as Widget,
-        onDividerDragUpdate: (index) {
-          // 사용자가 분할 크기를 조절하면 비율 저장
-          double totalFlex = controller.areas.fold(
-            0.0,
-                (sum, area) => sum + (area.flex ?? 0.0),
-          );
-          if (totalFlex > 0) {
-            node.ratios = controller.areas
-                .map((a) => (a.flex ?? 0.0) / totalFlex)
-                .toList();
-            _saveLayout();
-          }
-        },
+      return MultiSplitViewTheme(
+          data: MultiSplitViewThemeData(
+            dividerThickness: 5,
+            dividerPainter: DividerPainter(backgroundColor: Colors.red,
+              highlightedBackgroundColor: Colors.blue,),
+          ),
+          child: MultiSplitView(
+            key: ValueKey(node.id),
+            axis: node.axis!,
+            controller: controller,
+            builder: (context, area) => area.data as Widget,
+            onDividerDragUpdate: (index) {
+              // 사용자가 분할 크기를 조절하면 비율 저장
+              double totalFlex = controller.areas.fold(
+                0.0,
+                    (sum, area) => sum + (area.flex ?? 0.0),
+              );
+              if (totalFlex > 0) {
+                node.ratios = controller.areas
+                    .map((a) => (a.flex ?? 0.0) / totalFlex)
+                    .toList();
+                _saveLayout();
+              }
+            },
+          )
       );
     }
   }

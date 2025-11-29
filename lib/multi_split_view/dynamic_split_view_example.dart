@@ -126,36 +126,43 @@ class _DynamicSplitViewExample extends State<DynamicSplitViewExample> {
     }).toList();
 
     MultiSplitViewController controller = MultiSplitViewController(areas: areas);
-    return MultiSplitView(
-      axis: config.axis, // 분할 방향 설정
-      initialAreas: areas, // 초기 영역 구성
-      // controller: controller,
-      // pushDividers: false,
-      // 구분선 조작 시 영역 유지 방향
-      // webull mac처럼
-      sizeUnderflowPolicy: SizeUnderflowPolicy.stretchFirst,
-      onDividerDragStart: (index) {
-        // area를 처음 생성할 때는 영역을 반으로 나눠주어야함
-        // >> Area(flex: 1)
-        // 구분선 조작할 때는 size로 지정되어야 webull처럼 동작함
-        // >>> 가로로 4개 분할 되어 있을 때, flex로 크기 지정하면
-        //     첫번째와 마지막 구분선을 조작할때는 괜찮으나, 가운데 구분선을 조작하면
-        //     전체 영역의 크기가 조정됨
-        // for(Area area in areas){
-        //   // area.size = area.;
-        //   area.flex = null;
-        // }
-      },
-      builder: (context, area) {
-        // Area의 data에 저장된 PaneData를 가져와서 위젯을 빌드합니다.
-        final paneData = area.data as PaneData;
-        return _createPaneContentWidget(paneData);
-      },
-      // 필요에 따라 dividerBuilder 또는 controller 등을 추가할 수 있습니다.
-      // controller: MultiSplitViewController(areas: areas),
-      // dividerBuilder: (axis, index, resizable, dragging, highlighted, themeData) {
-      //   return Container(color: dragging ? Colors.grey[300] : Colors.grey[100]);
-      // },
+    return MultiSplitViewTheme(
+      data: MultiSplitViewThemeData(
+        dividerThickness: 5,
+        dividerPainter: DividerPainter(backgroundColor: Colors.red,
+          highlightedBackgroundColor: Colors.blue,),
+      ),
+      child: MultiSplitView(
+        axis: config.axis, // 분할 방향 설정
+        initialAreas: areas, // 초기 영역 구성
+        // controller: controller,
+        // pushDividers: false,
+        // 구분선 조작 시 영역 유지 방향
+        // webull mac처럼
+        sizeUnderflowPolicy: SizeUnderflowPolicy.stretchFirst,
+        onDividerDragStart: (index) {
+          // area를 처음 생성할 때는 영역을 반으로 나눠주어야함
+          // >> Area(flex: 1)
+          // 구분선 조작할 때는 size로 지정되어야 webull처럼 동작함
+          // >>> 가로로 4개 분할 되어 있을 때, flex로 크기 지정하면
+          //     첫번째와 마지막 구분선을 조작할때는 괜찮으나, 가운데 구분선을 조작하면
+          //     전체 영역의 크기가 조정됨
+          // for(Area area in areas){
+          //   // area.size = area.;
+          //   area.flex = null;
+          // }
+        },
+        builder: (context, area) {
+          // Area의 data에 저장된 PaneData를 가져와서 위젯을 빌드합니다.
+          final paneData = area.data as PaneData;
+          return _createPaneContentWidget(paneData);
+        },
+        // 필요에 따라 dividerBuilder 또는 controller 등을 추가할 수 있습니다.
+        // controller: MultiSplitViewController(areas: areas),
+        // dividerBuilder: (axis, index, resizable, dragging, highlighted, themeData) {
+        //   return Container(color: dragging ? Colors.grey[300] : Colors.grey[100]);
+        // },
+      ),
     );
   }
 
