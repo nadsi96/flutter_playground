@@ -4,6 +4,30 @@ import 'package:flutter/material.dart';
 import 'package:multi_split_view/multi_split_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+
+const APP_BACKGROUND_COLOR = Color(0xFFF0F2F5);
+const GENIE_ACCENT_COLOR = Color(0xFF52C2DF);
+const GENIE_ACCENT_COLOR_OP05 = Color.fromRGBO(82, 194, 223, 0.05);
+const GENIE_ACCENT_COLOR_OP10 = Color.fromRGBO(82, 194, 223, 0.1);
+const GENIE_ACCENT_COLOR_OP30 = Color.fromRGBO(82, 194, 223, 0.3);
+const ACCENT_PURPLE = Color(0xFF50CDEC);
+const ACCENT_PURPLE_SUB = Color(0xFF3BB8E0);
+const ACCENT_PURPLE_HOVER = Color(0xFF5AC3E8);
+const ACCENT_PURPLE_ACTIVE = Color(0xFF329FC4);
+
+// 전체영역 분할 버튼 크기
+const double BTN_GLOBAL_SPLIT_SIZE = 40;
+// 전체영역 분할 테두리 하이라이트 두께
+const double BTN_GLOBAL_SPLIT_HIGHLIGHT_THICKNESS = 6;
+
+// tab
+// text 크기
+const double TAB_TITLE_FONT_SIZE = 10;
+
+// 영역 분할 버튼
+const double BTN_DOCKING_SELECTOR_SIZE = 40;
+const double BTN_DOCKING_SELECOTR_GAP = 4;
+
 // =============================================================================
 // 1. Data Models (데이터 모델)
 // =============================================================================
@@ -13,14 +37,17 @@ enum NodeType { split, leaf }
 
 /// 개별 탭 데이터
 class TabData {
-  String id;
-  String title;
-  TabData({required this.id, required this.title});
+  String id; // 탭 구분용 id
+  String title; // 탭 헤더에 표기될 타이틀
+  String categoryId; // 탭 컨텐츠에 작성될 메뉴id
+
+  TabData({required this.id, required this.title, required this.categoryId});
 
   // JSON 직렬화/역직렬화
-  Map<String, dynamic> toJson() => {'id': id, 'title': title};
+  Map<String, dynamic> toJson() => {'id': id, 'title': title, 'categoryId': categoryId};
+
   factory TabData.fromJson(Map<String, dynamic> json) =>
-      TabData(id: json['id'], title: json['title']);
+      TabData(id: json['id'], title: json['title'], categoryId: json['categoryId']);
 }
 
 /// 레이아웃 트리 노드 (재귀적 구조)
@@ -41,7 +68,7 @@ class LayoutNode {
     this.ratios,
     List<TabData>? tabs,
     this.selectedTabIndex = 0,
-  })  : children = children ?? [],
+  }) : children = children ?? [],
         tabs = tabs ?? [];
 
   Map<String, dynamic> toJson() => {
@@ -55,8 +82,9 @@ class LayoutNode {
   };
 
   factory LayoutNode.fromJson(Map<String, dynamic> json) {
-    NodeType type =
-    json['type'] == 'NodeType.split' ? NodeType.split : NodeType.leaf;
+    NodeType type = json['type'] == 'NodeType.split'
+        ? NodeType.split
+        : NodeType.leaf;
     var node = LayoutNode(
       id: json['id'],
       type: type,
@@ -70,8 +98,9 @@ class LayoutNode {
           .toList();
     }
     if (json['tabs'] != null) {
-      node.tabs =
-          (json['tabs'] as List).map((t) => TabData.fromJson(t)).toList();
+      node.tabs = (json['tabs'] as List)
+          .map((t) => TabData.fromJson(t))
+          .toList();
     }
     return node;
   }
@@ -125,12 +154,12 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
   Future<void> _saveLayout() async {
     if (_rootNode == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('saved_layout_v12', jsonEncode(_rootNode!.toJson()));
+    await prefs.setString('saved_layout_v13', jsonEncode(_rootNode!.toJson()));
   }
 
   Future<void> _loadLayout() async {
     final prefs = await SharedPreferences.getInstance();
-    String? json = prefs.getString('saved_layout_v12');
+    String? json = prefs.getString('saved_layout_v13');
     if (json != null) {
       try {
         setState(() => _rootNode = LayoutNode.fromJson(jsonDecode(json)));
@@ -148,8 +177,8 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         id: _generateId(),
         type: NodeType.leaf,
         tabs: [
-          TabData(id: 't1', title: 'Watchlist'),
-          TabData(id: 't2', title: 'Chart'),
+          TabData(id: 't1', title: 'Watchlist', categoryId: 's20000'),
+          TabData(id: 't2', title: 'Chart', categoryId: 's20001'),
         ],
       );
     });
@@ -184,10 +213,14 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
       }
       node.children = newChildren;
 
-      if (node.children.isEmpty) return null; // 자식이 없으면 삭제
-      if (node.children.length == 1) return node.children.first; // 자식이 하나면 해당 자식으로 대체 (불필요한 split 제거)
+      // 자식이 다 없어졌으면 이 노드도 삭제
+      if (node.children.isEmpty) return null;
 
       // 비율 배열 길이 동기화
+      if (node.children.length == 1) {
+        return node.children.first;
+      }
+
       if (node.ratios != null && node.ratios!.length != node.children.length) {
         node.ratios = null;
       }
@@ -223,9 +256,13 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
   }
 
   /// 탭을 다른 패널로 이동하거나 화면 분할 처리
-  void _handleTabDrop(String srcNodeId, String tabId, String targetNodeId,
-      String action, {bool isRootDrop = false}) {
-
+  void _handleTabDrop(
+      String srcNodeId,
+      String tabId,
+      String targetNodeId,
+      String action, {
+        bool isRootDrop = false,
+      }) {
     // 1. 드래그 상태 강제 해제
     setState(() => _isDragging = false);
 
@@ -246,17 +283,19 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
       // 1. 기존 노드에서 탭 제거
       srcNode.tabs.removeAt(tabIndex);
       if (srcNode.selectedTabIndex >= srcNode.tabs.length) {
-        srcNode.selectedTabIndex = srcNode.tabs.isEmpty ? 0 : srcNode.tabs.length - 1;
+        srcNode.selectedTabIndex = srcNode.tabs.isEmpty
+            ? 0
+            : srcNode.tabs.length - 1;
       }
 
       // 2. 트리 정리 (탭이 없어진 빈 노드 제거 등)
       if (isRootDrop || srcNodeId != targetNodeId) {
         LayoutNode? cleanedRoot = _cleanTree(_rootNode!);
-        if (cleanedRoot == null) {
-          _rootNode = LayoutNode(id: _generateId(), type: NodeType.leaf, tabs: []);
-        } else {
-          _rootNode = cleanedRoot;
-        }
+        _rootNode = cleanedRoot ?? LayoutNode(
+          id: _generateId(),
+          type: NodeType.leaf,
+          tabs: [],
+        );
       }
 
       // 3. 새로운 위치에 탭 추가 또는 분할
@@ -288,10 +327,11 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
       selectedTabIndex: target.selectedTabIndex,
     );
     LayoutNode newChild = LayoutNode(
-        id: _generateId(),
-        type: NodeType.leaf,
-        tabs: [newTab],
-        selectedTabIndex: 0);
+      id: _generateId(),
+      type: NodeType.leaf,
+      tabs: [newTab],
+      selectedTabIndex: 0,
+    );
 
     // 타겟 노드를 Split 타입으로 변경하고 자식으로 기존 내용과 새 내용을 배치
     target.type = NodeType.split;
@@ -340,52 +380,67 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
     if (_rootNode == null) return const Scaffold();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: APP_BACKGROUND_COLOR,
       appBar: AppBar(
         title: const Text('Docking Layout'),
         actions: [
           IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () {
-                SharedPreferences.getInstance()
-                    .then((p) => p.remove('saved_layout_v12'));
-                _initDefault();
-              })
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              SharedPreferences.getInstance().then(
+                    (p) => p.remove('saved_layout_v14'),
+              );
+              _initDefault();
+            },
+          ),
         ],
       ),
-      body: Stack(
-        children: [
-          // 재귀적으로 패널들을 그리는 메인 영역
-          Positioned.fill(child: _buildRecursive(_rootNode!)),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final Size parentSize = constraints.biggest;
 
-          // 드래그 중일 때만 표시되는 화면 가장자리 전역 분할 버튼
-          if (_isDragging) ...[
-            _GlobalSplitButton(
-              alignment: Alignment.topCenter,
-              icon: Icons.keyboard_arrow_up,
-              action: 'top',
-              onDrop: (src, tab) => _handleTabDrop(src, tab, '', 'top', isRootDrop: true),
+          return ClipRect(
+            child: Stack(
+              children: [
+                Positioned.fill(child: _buildRecursive(_rootNode!)),
+                if (_isDragging) ...[
+                  _GlobalSplitButton(
+                    alignment: Alignment.topCenter,
+                    icon: Icons.keyboard_arrow_up,
+                    action: 'top',
+                    parentSize: parentSize,
+                    onDrop: (src, tab) =>
+                        _handleTabDrop(src, tab, '', 'top', isRootDrop: true),
+                  ),
+                  _GlobalSplitButton(
+                    alignment: Alignment.bottomCenter,
+                    icon: Icons.keyboard_arrow_down,
+                    action: 'bottom',
+                    parentSize: parentSize,
+                    onDrop: (src, tab) =>
+                        _handleTabDrop(src, tab, '', 'bottom', isRootDrop: true),
+                  ),
+                  _GlobalSplitButton(
+                    alignment: Alignment.centerLeft,
+                    icon: Icons.keyboard_arrow_left,
+                    action: 'left',
+                    parentSize: parentSize,
+                    onDrop: (src, tab) =>
+                        _handleTabDrop(src, tab, '', 'left', isRootDrop: true),
+                  ),
+                  _GlobalSplitButton(
+                    alignment: Alignment.centerRight,
+                    icon: Icons.keyboard_arrow_right,
+                    action: 'right',
+                    parentSize: parentSize,
+                    onDrop: (src, tab) =>
+                        _handleTabDrop(src, tab, '', 'right', isRootDrop: true),
+                  ),
+                ],
+              ],
             ),
-            _GlobalSplitButton(
-              alignment: Alignment.bottomCenter,
-              icon: Icons.keyboard_arrow_down,
-              action: 'bottom',
-              onDrop: (src, tab) => _handleTabDrop(src, tab, '', 'bottom', isRootDrop: true),
-            ),
-            _GlobalSplitButton(
-              alignment: Alignment.centerLeft,
-              icon: Icons.keyboard_arrow_left,
-              action: 'left',
-              onDrop: (src, tab) => _handleTabDrop(src, tab, '', 'left', isRootDrop: true),
-            ),
-            _GlobalSplitButton(
-              alignment: Alignment.centerRight,
-              icon: Icons.keyboard_arrow_right,
-              action: 'right',
-              onDrop: (src, tab) => _handleTabDrop(src, tab, '', 'right', isRootDrop: true),
-            ),
-          ],
-        ],
+          );
+        },
       ),
     );
   }
@@ -399,7 +454,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         onTabDrop: (src, tabId, action) =>
             _handleTabDrop(src, tabId, node.id, action),
         onAddTab: () => setState(() {
-          node.tabs.add(TabData(id: _generateId(), title: 'New Tab'));
+          node.tabs.add(TabData(id: _generateId(), title: 'New Tab', categoryId: 's20002'));
           node.selectedTabIndex = node.tabs.length - 1;
         }),
         onSelectTab: (idx) => setState(() => node.selectedTabIndex = idx),
@@ -410,8 +465,9 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
       );
     } else {
       // 분할 노드: MultiSplitView를 사용하여 화면 분할
-      List<Widget> childrenWidgets =
-      node.children.map((c) => _buildRecursive(c)).toList();
+      List<Widget> childrenWidgets = node.children
+          .map((c) => _buildRecursive(c))
+          .toList();
 
       List<Area> areas = [];
       for (int i = 0; i < childrenWidgets.length; i++) {
@@ -422,8 +478,9 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         areas.add(Area(data: childrenWidgets[i], flex: flex));
       }
 
-      MultiSplitViewController controller =
-      MultiSplitViewController(areas: areas);
+      MultiSplitViewController controller = MultiSplitViewController(
+        areas: areas,
+      );
 
       return MultiSplitView(
         key: ValueKey(node.id),
@@ -432,9 +489,14 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         builder: (context, area) => area.data as Widget,
         onDividerDragUpdate: (index) {
           // 사용자가 분할 크기를 조절하면 비율 저장
-          double totalFlex = controller.areas.fold(0.0, (sum, area) => sum + (area.flex ?? 0.0));
+          double totalFlex = controller.areas.fold(
+            0.0,
+                (sum, area) => sum + (area.flex ?? 0.0),
+          );
           if (totalFlex > 0) {
-            node.ratios = controller.areas.map((a) => (a.flex ?? 0.0) / totalFlex).toList();
+            node.ratios = controller.areas
+                .map((a) => (a.flex ?? 0.0) / totalFlex)
+                .toList();
             _saveLayout();
           }
         },
@@ -448,28 +510,33 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
 // =============================================================================
 
 class _GlobalSplitButton extends StatelessWidget {
+  // 전체영역 분할 버튼 위치 지정
+  // top: topCenter
+  // right: centerRight,
+  // bottom: bottomCenter,
+  // left: centerLeft
   final Alignment alignment;
   final IconData icon;
-  final String action;
+  final String action; // 상하좌우 구분
+  final Size parentSize; // 부모 영역 크기 // 테두리 하이라이트 시 사이즈 처리
   final Function(String srcNodeId, String tabId) onDrop;
 
   const _GlobalSplitButton({
     required this.alignment,
     required this.icon,
     required this.action,
+    required this.parentSize,
     required this.onDrop,
   });
 
   @override
   Widget build(BuildContext context) {
-    const double buttonSize = 40;
-    const double highlightThickness = 6;
 
     return Align(
       alignment: alignment,
-      child: Container(
-        width: buttonSize,
-        height: buttonSize,
+      child: SizedBox(
+        width: BTN_GLOBAL_SPLIT_SIZE,
+        height: BTN_GLOBAL_SPLIT_SIZE,
         child: DragTarget<DragPayload>(
           onWillAccept: (_) => true,
           onAccept: (data) => onDrop(data.sourceNodeId, data.tabId),
@@ -479,18 +546,26 @@ class _GlobalSplitButton extends StatelessWidget {
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
-                if (isHovering) _buildHighlight(action, highlightThickness),
+                if (isHovering) _buildHighlight(action, BTN_GLOBAL_SPLIT_HIGHLIGHT_THICKNESS),
                 Container(
-                  width: buttonSize,
-                  height: buttonSize,
+                  width: BTN_GLOBAL_SPLIT_SIZE,
+                  height: BTN_GLOBAL_SPLIT_SIZE,
                   decoration: BoxDecoration(
-                    color: isHovering ? Colors.blue : Colors.white.withOpacity(0.9),
+                    color: isHovering
+                        ? ACCENT_PURPLE
+                        : Colors.white.withOpacity(0.9),
                     shape: BoxShape.circle,
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 4, spreadRadius: 1)
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 4,
+                        spreadRadius: 1,
+                      ),
                     ],
                     border: Border.all(
-                      color: isHovering ? Colors.blue.shade900 : Colors.grey.shade300,
+                      color: isHovering
+                          ? ACCENT_PURPLE_ACTIVE
+                          : Colors.grey.shade300,
                     ),
                   ),
                   child: Icon(
@@ -507,15 +582,49 @@ class _GlobalSplitButton extends StatelessWidget {
   }
 
   Widget _buildHighlight(String action, double thickness) {
+
+    // 상/하 버튼 - 가로축 중앙 정렬
+    // 좌/우 버튼 - 세로축 중앙 정렬
+    // 상/하 버튼인 경우, 왼쪽 끝에서부터 부모영역 너비만큼 너비를 지정하여 테두리 작성
+    // 버튼의 offset 0, 0부터 처리하기 때문에 버튼 크기만큼 오차 발생
+    // 버튼 크기만큼 조정
+    double sizeBtnHalf = BTN_GLOBAL_SPLIT_SIZE / 2;
+    double translateHor = -(parentSize.width / 2) + sizeBtnHalf;
+    double translateVer = -(parentSize.height / 2) + sizeBtnHalf;
+
     // 액션에 따라 화면 가장자리에 파란색 하이라이트 표시
     if (action == 'top') {
-      return Positioned(top: 0, left: -5000, right: -5000, height: thickness, child: Container(color: Colors.blueAccent));
+      return Positioned(
+        top: 0,
+        left: translateHor,
+        width: parentSize.width,
+        height: thickness,
+        child: Container(color: ACCENT_PURPLE),
+      );
     } else if (action == 'bottom') {
-      return Positioned(bottom: 0, left: -5000, right: -5000, height: thickness, child: Container(color: Colors.blueAccent));
+      return Positioned(
+        bottom: 0,
+        left: translateHor,
+        width: parentSize.width,
+        height: thickness,
+        child: Container(color: ACCENT_PURPLE),
+      );
     } else if (action == 'left') {
-      return Positioned(left: 0, top: -5000, bottom: -5000, width: thickness, child: Container(color: Colors.blueAccent));
+      return Positioned(
+        left: 0,
+        top: translateVer,
+        width: thickness,
+        height: parentSize.height,
+        child: Container(color: ACCENT_PURPLE),
+      );
     } else {
-      return Positioned(right: 0, top: -5000, bottom: -5000, width: thickness, child: Container(color: Colors.blueAccent));
+      return Positioned(
+        right: 0,
+        top: translateVer,
+        width: thickness,
+        height: parentSize.height,
+        child: Container(color: ACCENT_PURPLE),
+      );
     }
   }
 }
@@ -549,36 +658,70 @@ class _DockingPane extends StatefulWidget {
 
 class _DockingPaneState extends State<_DockingPane> {
   String? _hoverAction;
-  final GlobalKey _contentKey = GlobalKey(); // 컨텐츠 영역의 좌표 계산을 위한 키
+  final GlobalKey _contentKey = GlobalKey();
 
   /// 드래그 위치에 따라 분할 액션(상하좌우, 센터) 판별
+  /// 1. 중앙 Selector 근처에서는 아이콘 위치에 따라 동작
+  /// 2. 그 외 영역에서는 가장자리(Edge) 감지 및 센터(Center) 동작
   void _updateHoverAction(Offset localPosition, Size size) {
-    // 중심점 및 거리 계산
     final Offset center = Offset(size.width / 2, size.height / 2);
-    const double selectorRadius = 60;
-    final double dist = (localPosition - center).distance;
 
-    // Selector 범위를 벗어나면 액션 초기화
-    if (dist > selectorRadius * 1.5) {
-      if (_hoverAction != null) setState(() => _hoverAction = null);
-      return;
+    // --- 1. 중앙 아이콘(Selector) 영역 우선 감지 ---
+    // Selector의 반지름 이내에 마우스가 있다면
+    // (버튼 1개(상/하/좌/우) 크기 + 버튼 크기/2 (중앙버튼)) + (버튼 gap 및 padding)
+    // 중앙 selector 동작 우선
+    const double selectorRadius = (BTN_DOCKING_SELECTOR_SIZE + BTN_DOCKING_SELECTOR_SIZE/2) + BTN_DOCKING_SELECOTR_GAP;
+    final double distFromCenter = (localPosition - center).distance;
+
+    if (distFromCenter < selectorRadius) {
+      double dx = localPosition.dx - center.dx;
+      double dy = localPosition.dy - center.dy;
+      const double centerZoneSize = BTN_DOCKING_SELECTOR_SIZE/2 + BTN_DOCKING_SELECOTR_GAP; // 중앙 '합치기' 네모 크기
+
+      if (dx.abs() < centerZoneSize && dy.abs() < centerZoneSize) {
+        // 정중앙
+        if (_hoverAction != 'center') setState(() => _hoverAction = 'center');
+      } else {
+        // Selector 내의 상하좌우 아이콘 판별
+        //   ______
+        //  (\    /)
+        // (  \  /  )
+        // (  /  \  )
+        //  (/    \)
+        //   ------
+        String newAction;
+        if (dx.abs() > dy.abs()) {
+          newAction = dx > 0 ? 'right' : 'left';
+        } else {
+          newAction = dy > 0 ? 'bottom' : 'top';
+        }
+        if (_hoverAction != newAction) setState(() => _hoverAction = newAction);
+      }
+      return; // 중앙 로직 처리 완료 시 리턴
     }
 
-    double dx = localPosition.dx - center.dx;
-    double dy = localPosition.dy - center.dy;
+    // --- 2. 바깥 영역 (border 근처 감지) 로직 ---
+    // Selector 범위 밖에서 수행
 
-    String newAction = 'center';
-    const double centerZoneSize = 25;
+    // 테두리 근처 감지 임계값 10px
+    double thresholdX = 15;
+    double thresholdY = 15;
 
-    // 중앙, 좌, 우, 상, 하 판별
-    if (dx.abs() < centerZoneSize && dy.abs() < centerZoneSize) {
-      newAction = 'center';
-    } else {
-      if (dx.abs() > dy.abs()) {
-        newAction = dx > 0 ? 'right' : 'left';
-      } else {
-        newAction = dy > 0 ? 'bottom' : 'top';
-      }
+    double distLeft = localPosition.dx;
+    double distRight = size.width - localPosition.dx;
+    double distTop = localPosition.dy;
+    double distBottom = size.height - localPosition.dy;
+
+    double minH = distLeft < distRight ? distLeft : distRight;
+    double minV = distTop < distBottom ? distTop : distBottom;
+
+    String newAction = 'center'; // 기본값은 합치기
+
+    // Border 근처인지 확인
+    if (minH < thresholdX && minH <= minV) {
+      newAction = distLeft < distRight ? 'left' : 'right';
+    } else if (minV < thresholdY && minV <= minH) {
+      newAction = distTop < distBottom ? 'top' : 'bottom';
     }
 
     if (_hoverAction != newAction) {
@@ -588,12 +731,10 @@ class _DockingPaneState extends State<_DockingPane> {
 
   @override
   Widget build(BuildContext context) {
-    // Column을 사용하여 탭 헤더와 컨텐츠 영역을 명확히 분리
-    // 이로 인해 탭 헤더 드래그 시 중앙의 Selector 오버레이가 간섭하지 않음
     return Column(
       children: [
         // -------------------------------------------------------
-        // 1. 탭 헤더 영역 (순서 변경 로직만 동작)
+        // 1. 탭 헤더
         // -------------------------------------------------------
         Container(
           height: 36,
@@ -627,7 +768,6 @@ class _DockingPaneState extends State<_DockingPane> {
             ],
           ),
         ),
-
         // -------------------------------------------------------
         // 2. 컨텐츠 영역 (분할/합치기 DragTarget 적용)
         // -------------------------------------------------------
@@ -636,14 +776,18 @@ class _DockingPaneState extends State<_DockingPane> {
             key: _contentKey,
             onWillAccept: (data) => data != null,
             onMove: (details) {
-              // 전역 좌표를 로컬 좌표로 변환하여 상대 위치 계산
-              final RenderBox renderBox = _contentKey.currentContext?.findRenderObject() as RenderBox;
+              final RenderBox renderBox =
+              _contentKey.currentContext?.findRenderObject() as RenderBox;
               final Size size = renderBox.size;
+
+              // pointerDragAnchorStrategy
+              // details.offset이 마우스 커서 좌표
               final Offset localPos = renderBox.globalToLocal(details.offset);
               _updateHoverAction(localPos, size);
             },
             onLeave: (_) => setState(() => _hoverAction = null),
             onAccept: (data) {
+              // 드래그된 데이터(위젯)이 DragTarget 위젯 위에 놓였을때 호출
               if (_hoverAction != null) {
                 widget.onTabDrop(data.sourceNodeId, data.tabId, _hoverAction!);
               }
@@ -654,30 +798,28 @@ class _DockingPaneState extends State<_DockingPane> {
 
               return Stack(
                 children: [
-                  // 실제 컨텐츠 내용
+                  // (1) 실제 컨텐츠
                   Container(
                     color: Colors.white,
                     alignment: Alignment.center,
                     child: widget.node.tabs.isEmpty
                         ? const Text("Empty")
-                        : Text(
-                      widget.node.tabs[widget.node.selectedTabIndex].title,
-                      style: const TextStyle(fontSize: 20, color: Colors.grey),
-                    ),
+                        : _buildContent(widget.node.tabs[widget.node.selectedTabIndex].categoryId),
                   ),
 
-                  // 드래그 시 중앙에 표시되는 방향 선택기(Selector) 오버레이
-                  if (isHovering) ...[
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.blueAccent, width: 2),
-                        color: Colors.blueAccent.withOpacity(0.05),
+                  // (2) 하이라이트 오버레이 (배경 및 테두리)
+                  if (isHovering && _hoverAction != null)
+                    Positioned.fill(
+                      child: _buildDropOverlay(_hoverAction!),
+                    ),
+
+                  // (3) 중앙 셀렉터 아이콘
+                  if (isHovering)
+                    Center(
+                      child: _DockingSelectorVisual(
+                        highlightedAction: _hoverAction,
                       ),
                     ),
-                    Center(
-                      child: _DockingSelectorVisual(highlightedAction: _hoverAction),
-                    ),
-                  ]
                 ],
               );
             },
@@ -686,53 +828,119 @@ class _DockingPaneState extends State<_DockingPane> {
       ],
     );
   }
+
+  /// 탭 영역에 보여줄 화면 컨텐츠
+  Widget _buildContent(String categoryId){
+    print("_buildContent :: $categoryId");
+    return Text(
+        categoryId,
+        style: const TextStyle(fontSize: 20, color: Colors.grey)
+    );
+  }
+
+  /// 드롭 위치에 따른 오버레이 디자인 (테두리 하이라이트 등)
+  Widget _buildDropOverlay(String action) {
+    const double thinWidth = 2.0;
+    const double thickWidth = 8.0;
+
+    // 센터일 때는 전체적으로 은은한 파란색
+    if (action == 'center') {
+      return Container(
+        decoration: BoxDecoration(
+          color: GENIE_ACCENT_COLOR_OP10,
+          border: Border.all(color: GENIE_ACCENT_COLOR, width: thinWidth),
+        ),
+      );
+    }
+
+    // 상하좌우일 때는 해당 방향의 테두리만 두껍게 강조
+    return Container(
+      decoration: BoxDecoration(
+        color: GENIE_ACCENT_COLOR_OP05,
+        border: Border(
+          top: BorderSide(
+            color: GENIE_ACCENT_COLOR,
+            width: action == 'top' ? thickWidth : thinWidth,
+          ),
+          bottom: BorderSide(
+            color: GENIE_ACCENT_COLOR,
+            width: action == 'bottom' ? thickWidth : thinWidth,
+          ),
+          left: BorderSide(
+            color: GENIE_ACCENT_COLOR,
+            width: action == 'left' ? thickWidth : thinWidth,
+          ),
+          right: BorderSide(
+            color: GENIE_ACCENT_COLOR,
+            width: action == 'right' ? thickWidth : thinWidth,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// 패널 중앙에 나타나는 분할 방향 선택 비주얼 (십자 모양 아이콘들)
 class _DockingSelectorVisual extends StatelessWidget {
   final String? highlightedAction;
+
   const _DockingSelectorVisual({this.highlightedAction});
+
   @override
   Widget build(BuildContext context) {
-    const double boxSize = 40; const double gap = 4;
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.85),
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildIcon('top', Icons.arrow_drop_up, boxSize),
-          const SizedBox(height: gap),
+          _buildIcon('top', Icons.arrow_drop_up, BTN_DOCKING_SELECTOR_SIZE),
+          const SizedBox(height: BTN_DOCKING_SELECOTR_GAP),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildIcon('left', Icons.arrow_left, boxSize),
-              const SizedBox(width: gap),
-              _buildIcon('center', Icons.stop_rounded, boxSize, isCenter: true),
-              const SizedBox(width: gap),
-              _buildIcon('right', Icons.arrow_right, boxSize),
+              _buildIcon('left', Icons.arrow_left, BTN_DOCKING_SELECTOR_SIZE),
+              const SizedBox(width: BTN_DOCKING_SELECOTR_GAP),
+              _buildIcon('center', Icons.stop_rounded, BTN_DOCKING_SELECTOR_SIZE, isCenter: true),
+              const SizedBox(width: BTN_DOCKING_SELECOTR_GAP),
+              _buildIcon('right', Icons.arrow_right, BTN_DOCKING_SELECTOR_SIZE),
             ],
           ),
-          const SizedBox(height: gap),
-          _buildIcon('bottom', Icons.arrow_drop_down, boxSize),
+          const SizedBox(height: BTN_DOCKING_SELECOTR_GAP),
+          _buildIcon('bottom', Icons.arrow_drop_down, BTN_DOCKING_SELECTOR_SIZE),
         ],
       ),
     );
   }
-  Widget _buildIcon(String action, IconData icon, double size, {bool isCenter = false}) {
+
+  Widget _buildIcon(
+      String action,
+      IconData icon,
+      double size, {
+        bool isCenter = false,
+      }) {
     bool isHighlighted = highlightedAction == action;
     return Container(
-      width: size, height: size,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
-        color: isHighlighted ? Colors.blue : Colors.grey.shade300,
+        color: isHighlighted ? ACCENT_PURPLE : Colors.grey.shade300,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: isHighlighted ? Colors.blue.shade900 : Colors.grey.shade400),
+        border: Border.all(
+          color: isHighlighted ? ACCENT_PURPLE_ACTIVE : Colors.grey.shade400,
+        ),
       ),
-      child: Icon(icon, color: isHighlighted ? Colors.white : Colors.grey[600], size: isCenter ? 24 : 32),
+      child: Icon(
+        icon,
+        color: isHighlighted ? Colors.white : Colors.grey[600],
+        size: isCenter ? 24 : 32,
+      ),
     );
   }
 }
@@ -747,6 +955,10 @@ class _DraggableTab extends StatelessWidget {
   final VoidCallback onDragStarted;
   final VoidCallback onDragEnded;
   final Function(String tabId) onReorder;
+
+  // 피드백 위젯의 크기 상수 (중심점 계산용)
+  static const double _feedbackWidth = 100;
+  static const double _feedbackHeight = 36;
 
   const _DraggableTab({
     required this.nodeId,
@@ -765,7 +977,9 @@ class _DraggableTab extends StatelessWidget {
     return DragTarget<DragPayload>(
       onWillAccept: (data) {
         // 같은 노드 내의 다른 탭일 경우만 수락
-        return data != null && data.sourceNodeId == nodeId && data.tabId != tab.id;
+        return data != null &&
+            data.sourceNodeId == nodeId &&
+            data.tabId != tab.id;
       },
       onAccept: (data) {
         onReorder(data.tabId);
@@ -779,20 +993,49 @@ class _DraggableTab extends StatelessWidget {
           onDragStarted: onDragStarted,
           onDraggableCanceled: (_, __) => onDragEnded(),
           onDragEnd: (_) => onDragEnded(),
-          feedback: Material(
-            color: Colors.transparent,
-            child: Container(
-              width: 150, height: 40, alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(4),
-                boxShadow: const [BoxShadow(blurRadius: 5, color: Colors.black26)],
-                border: Border.all(color: Colors.blue),
+
+          // 드래그 좌표 기준 마우스 포인터로 설정
+          // DragTarget의 details.offset이 마우스 커서 좌표가 됨
+          dragAnchorStrategy: pointerDragAnchorStrategy,
+
+          // 피드백 위젯 중심점 조정
+          // pointerDragAnchorStrategy는 피드백의 좌상단을 마우스에 맞춤
+          // 피드백 위젯을 크기의 절반만큼 이동시켜
+          // 커서가 위젯 중앙에 위치하도록 조정
+          feedback: Transform.translate(
+            offset: const Offset(-_feedbackWidth / 2, -_feedbackHeight / 2),
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: _feedbackWidth,
+                height: _feedbackHeight,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(4),
+                  boxShadow: const [
+                    BoxShadow(blurRadius: 5, color: Colors.black26),
+                  ],
+                  border: Border.all(color: GENIE_ACCENT_COLOR),
+                ),
+                child: Text(
+                  tab.title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: TAB_TITLE_FONT_SIZE,
+                  ),
+                ),
               ),
-              child: Text(tab.title, style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
-          childWhenDragging: Opacity(opacity: 0.3, child: _buildTabDesign(isHovering)),
-          child: GestureDetector(onTap: onTap, child: _buildTabDesign(isHovering)),
+          childWhenDragging: Opacity(
+            opacity: 0.3,
+            child: _buildTabDesign(isHovering),
+          ),
+          child: GestureDetector(
+            onTap: onTap,
+            child: _buildTabDesign(isHovering),
+          ),
         );
       },
     );
@@ -805,10 +1048,17 @@ class _DraggableTab extends StatelessWidget {
         color: isSelected ? Colors.white : Colors.transparent,
         // 드롭 가능한 상태일 때 왼쪽에 파란색 바(인디케이터) 표시
         border: isHovering
-            ? const Border(left: BorderSide(color: Colors.blue, width: 3))
+            ? const Border(left: BorderSide(color: GENIE_ACCENT_COLOR, width: 3))
             : null,
       ),
-      child: Text(tab.title, style: TextStyle(color: isSelected ? Colors.blue : Colors.black, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+      child: Text(
+        tab.title,
+        style: TextStyle(
+          color: isSelected ? GENIE_ACCENT_COLOR : Colors.black,
+          fontSize: TAB_TITLE_FONT_SIZE,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
     );
   }
 }
