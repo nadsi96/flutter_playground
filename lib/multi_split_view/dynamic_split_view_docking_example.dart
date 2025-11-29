@@ -395,40 +395,52 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          Positioned.fill(child: _buildRecursive(_rootNode!)),
-          if (_isDragging) ...[
-            _GlobalSplitButton(
-              alignment: Alignment.topCenter,
-              icon: Icons.keyboard_arrow_up,
-              action: 'top',
-              onDrop: (src, tab) =>
-                  _handleTabDrop(src, tab, '', 'top', isRootDrop: true),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final Size parentSize = constraints.biggest;
+
+          return ClipRect(
+            child: Stack(
+              children: [
+                Positioned.fill(child: _buildRecursive(_rootNode!)),
+                if (_isDragging) ...[
+                  _GlobalSplitButton(
+                    alignment: Alignment.topCenter,
+                    icon: Icons.keyboard_arrow_up,
+                    action: 'top',
+                    parentSize: parentSize,
+                    onDrop: (src, tab) =>
+                        _handleTabDrop(src, tab, '', 'top', isRootDrop: true),
+                  ),
+                  _GlobalSplitButton(
+                    alignment: Alignment.bottomCenter,
+                    icon: Icons.keyboard_arrow_down,
+                    action: 'bottom',
+                    parentSize: parentSize,
+                    onDrop: (src, tab) =>
+                        _handleTabDrop(src, tab, '', 'bottom', isRootDrop: true),
+                  ),
+                  _GlobalSplitButton(
+                    alignment: Alignment.centerLeft,
+                    icon: Icons.keyboard_arrow_left,
+                    action: 'left',
+                    parentSize: parentSize,
+                    onDrop: (src, tab) =>
+                        _handleTabDrop(src, tab, '', 'left', isRootDrop: true),
+                  ),
+                  _GlobalSplitButton(
+                    alignment: Alignment.centerRight,
+                    icon: Icons.keyboard_arrow_right,
+                    action: 'right',
+                    parentSize: parentSize,
+                    onDrop: (src, tab) =>
+                        _handleTabDrop(src, tab, '', 'right', isRootDrop: true),
+                  ),
+                ],
+              ],
             ),
-            _GlobalSplitButton(
-              alignment: Alignment.bottomCenter,
-              icon: Icons.keyboard_arrow_down,
-              action: 'bottom',
-              onDrop: (src, tab) =>
-                  _handleTabDrop(src, tab, '', 'bottom', isRootDrop: true),
-            ),
-            _GlobalSplitButton(
-              alignment: Alignment.centerLeft,
-              icon: Icons.keyboard_arrow_left,
-              action: 'left',
-              onDrop: (src, tab) =>
-                  _handleTabDrop(src, tab, '', 'left', isRootDrop: true),
-            ),
-            _GlobalSplitButton(
-              alignment: Alignment.centerRight,
-              icon: Icons.keyboard_arrow_right,
-              action: 'right',
-              onDrop: (src, tab) =>
-                  _handleTabDrop(src, tab, '', 'right', isRootDrop: true),
-            ),
-          ],
-        ],
+          );
+        },
       ),
     );
   }
@@ -498,15 +510,22 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
 // =============================================================================
 
 class _GlobalSplitButton extends StatelessWidget {
+  // 전체영역 분할 버튼 위치 지정
+  // top: topCenter
+  // right: centerRight,
+  // bottom: bottomCenter,
+  // left: centerLeft
   final Alignment alignment;
   final IconData icon;
-  final String action;
+  final String action; // 상하좌우 구분
+  final Size parentSize; // 부모 영역 크기 // 테두리 하이라이트 시 사이즈 처리
   final Function(String srcNodeId, String tabId) onDrop;
 
   const _GlobalSplitButton({
     required this.alignment,
     required this.icon,
     required this.action,
+    required this.parentSize,
     required this.onDrop,
   });
 
@@ -563,37 +582,47 @@ class _GlobalSplitButton extends StatelessWidget {
   }
 
   Widget _buildHighlight(String action, double thickness) {
+
+    // 상/하 버튼 - 가로축 중앙 정렬
+    // 좌/우 버튼 - 세로축 중앙 정렬
+    // 상/하 버튼인 경우, 왼쪽 끝에서부터 부모영역 너비만큼 너비를 지정하여 테두리 작성
+    // 버튼의 offset 0, 0부터 처리하기 때문에 버튼 크기만큼 오차 발생
+    // 버튼 크기만큼 조정
+    double sizeBtnHalf = BTN_GLOBAL_SPLIT_SIZE / 2;
+    double translateHor = -(parentSize.width / 2) + sizeBtnHalf;
+    double translateVer = -(parentSize.height / 2) + sizeBtnHalf;
+
     // 액션에 따라 화면 가장자리에 파란색 하이라이트 표시
     if (action == 'top') {
       return Positioned(
         top: 0,
-        left: -5000,
-        right: -5000,
+        left: translateHor,
+        width: parentSize.width,
         height: thickness,
         child: Container(color: ACCENT_PURPLE),
       );
     } else if (action == 'bottom') {
       return Positioned(
         bottom: 0,
-        left: -5000,
-        right: -5000,
+        left: translateHor,
+        width: parentSize.width,
         height: thickness,
         child: Container(color: ACCENT_PURPLE),
       );
     } else if (action == 'left') {
       return Positioned(
         left: 0,
-        top: -5000,
-        bottom: -5000,
+        top: translateVer,
         width: thickness,
+        height: parentSize.height,
         child: Container(color: ACCENT_PURPLE),
       );
     } else {
       return Positioned(
         right: 0,
-        top: -5000,
-        bottom: -5000,
+        top: translateVer,
         width: thickness,
+        height: parentSize.height,
         child: Container(color: ACCENT_PURPLE),
       );
     }
