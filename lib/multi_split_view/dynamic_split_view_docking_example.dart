@@ -37,16 +37,17 @@ enum NodeType { split, leaf }
 
 /// 개별 탭 데이터
 class TabData {
-  String id;
-  String title;
+  String id; // 탭 구분용 id
+  String title; // 탭 헤더에 표기될 타이틀
+  String categoryId; // 탭 컨텐츠에 작성될 메뉴id
 
-  TabData({required this.id, required this.title});
+  TabData({required this.id, required this.title, required this.categoryId});
 
   // JSON 직렬화/역직렬화
-  Map<String, dynamic> toJson() => {'id': id, 'title': title};
+  Map<String, dynamic> toJson() => {'id': id, 'title': title, 'categoryId': categoryId};
 
   factory TabData.fromJson(Map<String, dynamic> json) =>
-      TabData(id: json['id'], title: json['title']);
+      TabData(id: json['id'], title: json['title'], categoryId: json['categoryId']);
 }
 
 /// 레이아웃 트리 노드 (재귀적 구조)
@@ -176,8 +177,8 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         id: _generateId(),
         type: NodeType.leaf,
         tabs: [
-          TabData(id: 't1', title: 'Watchlist'),
-          TabData(id: 't2', title: 'Chart'),
+          TabData(id: 't1', title: 'Watchlist', categoryId: 's20000'),
+          TabData(id: 't2', title: 'Chart', categoryId: 's20001'),
         ],
       );
     });
@@ -441,7 +442,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         onTabDrop: (src, tabId, action) =>
             _handleTabDrop(src, tabId, node.id, action),
         onAddTab: () => setState(() {
-          node.tabs.add(TabData(id: _generateId(), title: 'New Tab'));
+          node.tabs.add(TabData(id: _generateId(), title: 'New Tab', categoryId: 's20002'));
           node.selectedTabIndex = node.tabs.length - 1;
         }),
         onSelectTab: (idx) => setState(() => node.selectedTabIndex = idx),
@@ -774,10 +775,7 @@ class _DockingPaneState extends State<_DockingPane> {
                     alignment: Alignment.center,
                     child: widget.node.tabs.isEmpty
                         ? const Text("Empty")
-                        : Text(
-                      widget.node.tabs[widget.node.selectedTabIndex].title,
-                      style: const TextStyle(fontSize: 20, color: Colors.grey),
-                    ),
+                        : _buildContent(widget.node.tabs[widget.node.selectedTabIndex].categoryId),
                   ),
 
                   // (2) 하이라이트 오버레이 (배경 및 테두리)
@@ -799,6 +797,15 @@ class _DockingPaneState extends State<_DockingPane> {
           ),
         ),
       ],
+    );
+  }
+
+  /// 탭 영역에 보여줄 화면 컨텐츠
+  Widget _buildContent(String categoryId){
+    print("_buildContent :: $categoryId");
+    return Text(
+        categoryId,
+        style: const TextStyle(fontSize: 20, color: Colors.grey)
     );
   }
 
