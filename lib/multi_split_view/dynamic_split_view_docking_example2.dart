@@ -6,9 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /**
  * 영역 처리 수정 == webull
- * 아직은 이전 코드 복붙
  */
-
+const KEY_SAVED_LAYOUT_DATA = "saved_layout_v17"; // 버전 업데이트
 const APP_BACKGROUND_COLOR = Color(0xFFF0F2F5);
 const GENIE_ACCENT_COLOR = Color(0xFF52C2DF);
 const GENIE_ACCENT_COLOR_OP05 = Color.fromRGBO(82, 194, 223, 0.05);
@@ -27,13 +26,16 @@ const double BTN_GLOBAL_SPLIT_HIGHLIGHT_THICKNESS = 6;
 // tab
 // text 크기
 const double TAB_TITLE_FONT_SIZE = 10;
-
+const double TAB_HEADER_HEIGHT = 36.0;
 // 영역 분할 버튼
 const double BTN_DOCKING_SELECTOR_SIZE = 40;
 const double BTN_DOCKING_SELECOTR_GAP = 4;
 
+// 테두리 근처 감지 임계값
+const DOCKING_PANE_BORDER_THRESHOLD = 15.0;
+
 // =============================================================================
-// 1. Data Models (데이터 모델)
+// 1. Data Models
 // =============================================================================
 
 /// 노드 타입: 분할된 화면(split)인지, 실제 탭이 있는 말단 화면(leaf)인지 구분
@@ -86,9 +88,7 @@ class LayoutNode {
   };
 
   factory LayoutNode.fromJson(Map<String, dynamic> json) {
-    NodeType type = json['type'] == 'NodeType.split'
-        ? NodeType.split
-        : NodeType.leaf;
+    NodeType type = json['type'] == 'NodeType.split' ? NodeType.split : NodeType.leaf;
     var node = LayoutNode(
       id: json['id'],
       type: type,
@@ -97,14 +97,10 @@ class LayoutNode {
       ratios: json['ratios'] != null ? List<double>.from(json['ratios']) : null,
     );
     if (json['children'] != null) {
-      node.children = (json['children'] as List)
-          .map((c) => LayoutNode.fromJson(c))
-          .toList();
+      node.children = (json['children'] as List).map((c) => LayoutNode.fromJson(c)).toList();
     }
     if (json['tabs'] != null) {
-      node.tabs = (json['tabs'] as List)
-          .map((t) => TabData.fromJson(t))
-          .toList();
+      node.tabs = (json['tabs'] as List).map((t) => TabData.fromJson(t)).toList();
     }
     return node;
   }
@@ -118,20 +114,24 @@ class DragPayload {
 }
 
 // =============================================================================
-// 2. Main Screen & Logic (메인 화면 및 비즈니스 로직)
+// 2. Main Screen & Logic
 // =============================================================================
 
-class DockingLayoutExample extends StatefulWidget {
-  const DockingLayoutExample({super.key});
+class DockingLayoutExample2 extends StatefulWidget {
+  const DockingLayoutExample2({super.key});
 
   @override
-  State<DockingLayoutExample> createState() => _DockingLayoutExampleState();
+  State<DockingLayoutExample2> createState() => _DockingLayoutExample2State();
 }
 
-class _DockingLayoutExampleState extends State<DockingLayoutExample> {
+class _DockingLayoutExample2State extends State<DockingLayoutExample2> {
   LayoutNode? _rootNode; // 트리의 최상위 노드
   int _idCounter = 0;
   bool _isDragging = false; // 현재 드래그 중인지 여부 (전역 버튼 표시용)
+  bool _isGlobalButtonsVisible = true;
+
+  // 드래그 중 탭 헤더를 한 번이라도 벗어났는지 체크하는 플래그
+  bool _bHasLeftTabHeader = false;
 
   @override
   void initState() {
@@ -146,24 +146,59 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
 
   // --- 드래그 상태 관리 ---
   void _onDragStarted() {
-    if (!_isDragging) setState(() => _isDragging = true);
+    if (!_isDragging) {
+      setState(() {
+        _isDragging = true;
+        // 전체영역 버튼 노출 상태 초기화
+        _isGlobalButtonsVisible = true;
+        // 드래그 시작 시 초기화: 아직 벗어나지 않음
+        _bHasLeftTabHeader = false;
+      });
+    }
   }
 
   void _onDragEnded() {
-    // 이미 로직에 의해 false가 된 경우 중복 호출 방지
-    if (_isDragging) setState(() => _isDragging = false);
+    if (_isDragging) {
+      setState(() {
+        // 이미 로직에 의해 false가 된 경우 중복 호출 방지
+        _isDragging = false;
+        // 전체영역 버튼 노출 상태 초기화
+        _isGlobalButtonsVisible = true;
+        // 탭 드래그 헤더영역 이탈 여부 초기화
+        _bHasLeftTabHeader = false;
+      });
+    }
   }
 
-  // --- 데이터 저장 및 불러오기 (SharedPreferences) ---
+  void _setGlobalButtonsVisibility(bool visible) {
+    if (_isGlobalButtonsVisible != visible) {
+      setState(() {
+        _isGlobalButtonsVisible = visible;
+      });
+    }
+  }
+
+  // 하위 위젯에서 호출하여 헤더 이탈 상태 기록
+  void _markLeftTabHeader() {
+    if (!_bHasLeftTabHeader) {
+      setState(() {
+        _bHasLeftTabHeader = true;
+        // 헤더를 벗어나면 Global Button은 다시 보여야 함 (기본적으로)
+        _isGlobalButtonsVisible = true;
+      });
+    }
+  }
+
+  // --- 데이터 저장 및 불러오기
   Future<void> _saveLayout() async {
     if (_rootNode == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('saved_layout_v13', jsonEncode(_rootNode!.toJson()));
+    await prefs.setString(KEY_SAVED_LAYOUT_DATA, jsonEncode(_rootNode!.toJson()));
   }
 
   Future<void> _loadLayout() async {
     final prefs = await SharedPreferences.getInstance();
-    String? json = prefs.getString('saved_layout_v13');
+    String? json = prefs.getString(KEY_SAVED_LAYOUT_DATA);
     if (json != null) {
       try {
         setState(() => _rootNode = LayoutNode.fromJson(jsonDecode(json)));
@@ -391,9 +426,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              SharedPreferences.getInstance().then(
-                    (p) => p.remove('saved_layout_v14'),
-              );
+              SharedPreferences.getInstance().then((p) => p.remove(KEY_SAVED_LAYOUT_DATA));
               _initDefault();
             },
           ),
@@ -407,38 +440,39 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
             child: Stack(
               children: [
                 Positioned.fill(child: _buildRecursive(_rootNode!)),
-                if (_isDragging) ...[
+                // 드래그 위치가 탭 헤더 영역을 한 번 벗어난 경우만 노출
+                if (_isDragging && _isGlobalButtonsVisible) ...[
                   _GlobalSplitButton(
                     alignment: Alignment.topCenter,
                     icon: Icons.keyboard_arrow_up,
                     action: 'top',
                     parentSize: parentSize,
-                    onDrop: (src, tab) =>
-                        _handleTabDrop(src, tab, '', 'top', isRootDrop: true),
+                    onDrop: (src, tab) => _handleTabDrop(src, tab, '', 'top', isRootDrop: true),
+                    onHover: _markLeftTabHeader, // 글로벌 버튼에 닿았다는 것도 헤더 이탈로 간주
                   ),
                   _GlobalSplitButton(
                     alignment: Alignment.bottomCenter,
                     icon: Icons.keyboard_arrow_down,
                     action: 'bottom',
                     parentSize: parentSize,
-                    onDrop: (src, tab) =>
-                        _handleTabDrop(src, tab, '', 'bottom', isRootDrop: true),
+                    onDrop: (src, tab) => _handleTabDrop(src, tab, '', 'bottom', isRootDrop: true),
+                    onHover: _markLeftTabHeader,
                   ),
                   _GlobalSplitButton(
                     alignment: Alignment.centerLeft,
                     icon: Icons.keyboard_arrow_left,
                     action: 'left',
                     parentSize: parentSize,
-                    onDrop: (src, tab) =>
-                        _handleTabDrop(src, tab, '', 'left', isRootDrop: true),
+                    onDrop: (src, tab) => _handleTabDrop(src, tab, '', 'left', isRootDrop: true),
+                    onHover: _markLeftTabHeader,
                   ),
                   _GlobalSplitButton(
                     alignment: Alignment.centerRight,
                     icon: Icons.keyboard_arrow_right,
                     action: 'right',
                     parentSize: parentSize,
-                    onDrop: (src, tab) =>
-                        _handleTabDrop(src, tab, '', 'right', isRootDrop: true),
+                    onDrop: (src, tab) => _handleTabDrop(src, tab, '', 'right', isRootDrop: true),
+                    onHover: _markLeftTabHeader,
                   ),
                 ],
               ],
@@ -464,8 +498,11 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
         onSelectTab: (idx) => setState(() => node.selectedTabIndex = idx),
         onDragStarted: _onDragStarted,
         onDragEnded: _onDragEnded,
-        onTabReorder: (tabId, targetIndex) =>
-            _handleTabReorder(node.id, tabId, targetIndex),
+        onTabReorder: (tabId, targetIndex) => _handleTabReorder(node.id, tabId, targetIndex),
+        onSetGlobalVisibility: _setGlobalButtonsVisibility,
+        // 상태값, setter 전달
+        hasLeftTabHeader: _bHasLeftTabHeader,
+        onLeaveTabHeader: _markLeftTabHeader,
       );
     } else {
       // 분할 노드: MultiSplitView를 사용하여 화면 분할
@@ -517,7 +554,7 @@ class _DockingLayoutExampleState extends State<DockingLayoutExample> {
 }
 
 // =============================================================================
-// 3. Global Split Button (화면 가장자리 분할 영역)
+// 3. Global Split Button
 // =============================================================================
 
 class _GlobalSplitButton extends StatelessWidget {
@@ -531,6 +568,7 @@ class _GlobalSplitButton extends StatelessWidget {
   final String action; // 상하좌우 구분
   final Size parentSize; // 부모 영역 크기 // 테두리 하이라이트 시 사이즈 처리
   final Function(String srcNodeId, String tabId) onDrop;
+  final VoidCallback onHover; // 호버 시 상태 업데이트용
 
   const _GlobalSplitButton({
     required this.alignment,
@@ -538,6 +576,7 @@ class _GlobalSplitButton extends StatelessWidget {
     required this.action,
     required this.parentSize,
     required this.onDrop,
+    required this.onHover,
   });
 
   @override
@@ -549,7 +588,10 @@ class _GlobalSplitButton extends StatelessWidget {
         width: BTN_GLOBAL_SPLIT_SIZE,
         height: BTN_GLOBAL_SPLIT_SIZE,
         child: DragTarget<DragPayload>(
-          onWillAccept: (_) => true,
+          onWillAccept: (data) {
+            onHover(); // 글로벌 버튼에 진입하면 무조건 헤더 이탈로 간주
+            return true;
+          },
           onAccept: (data) => onDrop(data.sourceNodeId, data.tabId),
           builder: (context, candidateData, rejectedData) {
             bool isHovering = candidateData.isNotEmpty;
@@ -653,6 +695,13 @@ class _DockingPane extends StatefulWidget {
   final VoidCallback onDragEnded;
   final Function(String tabId, int targetIndex) onTabReorder;
 
+  // 전체 영역 분할 버튼 노출 여부 설정 이벤트
+  final Function(bool visible) onSetGlobalVisibility;
+
+  // 탭헤더 이탈 여부 상태 전달 받음
+  final bool hasLeftTabHeader;
+  final VoidCallback onLeaveTabHeader;
+
   const _DockingPane({
     required this.node,
     required this.onTabDrop,
@@ -661,6 +710,9 @@ class _DockingPane extends StatefulWidget {
     required this.onDragStarted,
     required this.onDragEnded,
     required this.onTabReorder,
+    required this.onSetGlobalVisibility,
+    required this.hasLeftTabHeader,
+    required this.onLeaveTabHeader,
   });
 
   @override
@@ -669,31 +721,84 @@ class _DockingPane extends StatefulWidget {
 
 class _DockingPaneState extends State<_DockingPane> {
   String? _hoverAction;
-  final GlobalKey _contentKey = GlobalKey();
+  DragPayload? _currentPayload;
 
-  /// 드래그 위치에 따라 분할 액션(상하좌우, 센터) 판별
-  /// 1. 중앙 Selector 근처에서는 아이콘 위치에 따라 동작
-  /// 2. 그 외 영역에서는 가장자리(Edge) 감지 및 센터(Center) 동작
-  void _updateHoverAction(Offset localPosition, Size size) {
-    final Offset center = Offset(size.width / 2, size.height / 2);
+  /// 드래그 위치에 따라 분할 액션 판별 및 Global Button 제어
+  void _updateHoverAction(Offset localPosition, Size size, DragPayload payload) {
+    bool inHeader = localPosition.dy < TAB_HEADER_HEIGHT;
+    bool isSelf = payload.sourceNodeId == widget.node.id;
 
-    // --- 1. 중앙 아이콘(Selector) 영역 우선 감지 ---
-    // Selector의 반지름 이내에 마우스가 있다면
-    // (버튼 1개(상/하/좌/우) 크기 + 버튼 크기/2 (중앙버튼)) + (버튼 gap 및 padding)
-    // 중앙 selector 동작 우선
-    const double selectorRadius = (BTN_DOCKING_SELECTOR_SIZE + BTN_DOCKING_SELECTOR_SIZE/2) + BTN_DOCKING_SELECOTR_GAP;
-    final double distFromCenter = (localPosition - center).distance;
+    // 1. 헤더 영역 처리
+    if (inHeader) {
+      if (isSelf) {
+        // [조건 1] 자기 자신 헤더
+        // [NEW] 만약 한 번이라도 나갔다 왔다면, 이제 Reorder가 영역 분할/이동
+        // 상단 테두리 임계값 안쪽이면 위로 분할
+        // 아니라면 Center Drop
+        if (widget.hasLeftTabHeader) {
+          if (localPosition.dy < DOCKING_PANE_BORDER_THRESHOLD) {
+            if(_hoverAction != 'top'){
+              setState(() {
+                _hoverAction = 'top';
+              });
+            }
+          } else if (_hoverAction != 'center') {
+            setState(() {
+              _hoverAction = 'center';
+            });
+          }
+          // Overlay를 보여줘야 하므로 Global Visibility 켜서 일반적인 Docking 모드로 전환
+          widget.onSetGlobalVisibility(true);
+        } else {
+          // 아직 안 나갔으면 Reorder 모드 (Action Null, Global Button Off)
+          if (_hoverAction != null) setState(() => _hoverAction = null);
+          widget.onSetGlobalVisibility(false);
+        }
+      } else {
+        // [조건 3] 다른 패널 헤더: 해당 패널로 합치기 (Center 동작)
+        if(localPosition.dy < DOCKING_PANE_BORDER_THRESHOLD) {
+          if(_hoverAction != 'top'){
+            setState(() {
+              _hoverAction = 'top';
+            });
+          }
+        } else if (_hoverAction != 'center') setState(() => _hoverAction = 'center');
+        widget.onSetGlobalVisibility(true);
+        // 다른 패널에 왔다는 건 확실히 소스 헤더를 떠난 것
+        widget.onLeaveTabHeader();
+      }
+      return;
+    }
+
+    // 2. 컨텐츠 영역 처리 (Header 벗어남)
+    // 소스 노드에서 컨텐츠 영역으로 왔다면 -> "헤더 떠남" 마킹
+    if (isSelf) {
+      widget.onLeaveTabHeader();
+    } else {
+      // 다른 노드 컨텐츠 영역에 왔어도 마찬가지
+      widget.onLeaveTabHeader();
+    }
+
+    // [조건 2] 영역 분할 및 이동 가능 -> Global Button 보임
+    widget.onSetGlobalVisibility(true);
+
+    final double contentHeight = size.height - TAB_HEADER_HEIGHT;
+    final Offset contentCenter = Offset(size.width / 2, TAB_HEADER_HEIGHT + (contentHeight / 2));
+
+    // 중앙 Selector 감지
+    const double selectorRadius = (BTN_DOCKING_SELECTOR_SIZE * 1.5) + BTN_DOCKING_SELECOTR_GAP;
+    final double distFromCenter = (localPosition - contentCenter).distance;
 
     if (distFromCenter < selectorRadius) {
-      double dx = localPosition.dx - center.dx;
-      double dy = localPosition.dy - center.dy;
-      const double centerZoneSize = BTN_DOCKING_SELECTOR_SIZE/2 + BTN_DOCKING_SELECOTR_GAP; // 중앙 '합치기' 네모 크기
+      double dx = localPosition.dx - contentCenter.dx;
+      double dy = localPosition.dy - contentCenter.dy;
+      const double centerZoneSize = BTN_DOCKING_SELECTOR_SIZE / 2 + BTN_DOCKING_SELECOTR_GAP;
 
+      // Selector 중앙 (합치기)
       if (dx.abs() < centerZoneSize && dy.abs() < centerZoneSize) {
-        // 정중앙
         if (_hoverAction != 'center') setState(() => _hoverAction = 'center');
       } else {
-        // Selector 내의 상하좌우 아이콘 판별
+        // Selector 4방향 (상하좌우 분할)
         //   ______
         //  (\    /)
         // (  \  /  )
@@ -708,16 +813,10 @@ class _DockingPaneState extends State<_DockingPane> {
         }
         if (_hoverAction != newAction) setState(() => _hoverAction = newAction);
       }
-      return; // 중앙 로직 처리 완료 시 리턴
+      return;
     }
 
-    // --- 2. 바깥 영역 (border 근처 감지) 로직 ---
-    // Selector 범위 밖에서 수행
-
-    // 테두리 근처 감지 임계값 10px
-    double thresholdX = 15;
-    double thresholdY = 15;
-
+    // 테두리(Border) 감지
     double distLeft = localPosition.dx;
     double distRight = size.width - localPosition.dx;
     double distTop = localPosition.dy;
@@ -726,12 +825,11 @@ class _DockingPaneState extends State<_DockingPane> {
     double minH = distLeft < distRight ? distLeft : distRight;
     double minV = distTop < distBottom ? distTop : distBottom;
 
-    String newAction = 'center'; // 기본값은 합치기
+    String newAction = 'center';
 
-    // Border 근처인지 확인
-    if (minH < thresholdX && minH <= minV) {
+    if (minH < DOCKING_PANE_BORDER_THRESHOLD && minH <= minV) {
       newAction = distLeft < distRight ? 'left' : 'right';
-    } else if (minV < thresholdY && minV <= minH) {
+    } else if (minV < DOCKING_PANE_BORDER_THRESHOLD && minV <= minH) {
       newAction = distTop < distBottom ? 'top' : 'bottom';
     }
 
@@ -742,101 +840,124 @@ class _DockingPaneState extends State<_DockingPane> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // -------------------------------------------------------
-        // 1. 탭 헤더
-        // -------------------------------------------------------
-        Container(
-          height: 36,
-          color: Colors.grey[200],
-          child: Row(
-            children: [
-              Expanded(
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: widget.node.tabs.length,
-                  itemBuilder: (context, index) {
-                    final tab = widget.node.tabs[index];
-                    bool selected = index == widget.node.selectedTabIndex;
-                    return _DraggableTab(
-                      nodeId: widget.node.id,
-                      tab: tab,
-                      index: index,
-                      isSelected: selected,
-                      onTap: () => widget.onSelectTab(index),
-                      onDragStarted: widget.onDragStarted,
-                      onDragEnded: widget.onDragEnded,
-                      onReorder: (tabId) => widget.onTabReorder(tabId, index),
-                    );
-                  },
+    return DragTarget<DragPayload>(
+      onWillAccept: (data) {
+        _currentPayload = data;
+        return data != null;
+      },
+      onMove: (details) {
+        final RenderBox renderBox = context.findRenderObject() as RenderBox;
+        final Size size = renderBox.size;
+        final Offset localPos = renderBox.globalToLocal(details.offset);
+        if (_currentPayload != null) {
+          _updateHoverAction(localPos, size, _currentPayload!);
+        }
+      },
+      onLeave: (_) {
+        setState(() {
+          _hoverAction = null;
+          _currentPayload = null;
+        });
+        // 나갈 때는 Global Button 보이도록 복구
+        widget.onSetGlobalVisibility(true);
+      },
+      onAccept: (data) {
+        if (_hoverAction != null) {
+          widget.onTabDrop(data.sourceNodeId, data.tabId, _hoverAction!);
+        }
+        setState(() {
+          _hoverAction = null;
+          _currentPayload = null;
+        });
+        widget.onSetGlobalVisibility(true);
+      },
+      builder: (context, candidateData, rejectedData) {
+        bool isHovering = candidateData.isNotEmpty;
+
+        // [조건 1] ReorderingSelf 체크: 자신 노드이고, 헤더를 떠난 적이 없으며, 현재 HoverAction이 없음(Reorder모드)
+        // 위 _updateHoverAction 로직에서 hasLeftTabHeader가 true면 action을 'center'로 잡으므로
+        // 여기서는 자동으로 걸러짐 (_hoverAction == null 일때만 Reorder UI 표시)
+        bool isReorderingSelf = isHovering &&
+            _currentPayload?.sourceNodeId == widget.node.id &&
+            _hoverAction == null;
+
+        return Stack(
+          children: [
+            Column(
+              children: [
+                // -------------------------------------------------------
+                // 1. 탭 헤더
+                // -------------------------------------------------------
+                Container(
+                  height: TAB_HEADER_HEIGHT,
+                  color: Colors.grey[200],
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: widget.node.tabs.length,
+                          itemBuilder: (context, index) {
+                            final tab = widget.node.tabs[index];
+                            bool selected = index == widget.node.selectedTabIndex;
+                            return _DraggableTab(
+                              nodeId: widget.node.id,
+                              tab: tab,
+                              index: index,
+                              isSelected: selected,
+                              onTap: () => widget.onSelectTab(index),
+                              onDragStarted: widget.onDragStarted,
+                              onDragEnded: widget.onDragEnded,
+                              onReorder: (tabId) => widget.onTabReorder(tabId, index),
+                              // [NEW] 탭 위젯에도 상태 전달하여 드래그 수락 여부 결정
+                              hasLeftTabHeader: widget.hasLeftTabHeader,
+                            );
+                          },
+                        ),
+                      ),
+                      IconButton(icon: const Icon(Icons.add, size: 18), onPressed: widget.onAddTab),
+                    ],
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.add, size: 18),
-                onPressed: widget.onAddTab,
-              ),
-            ],
-          ),
-        ),
-        // -------------------------------------------------------
-        // 2. 컨텐츠 영역 (분할/합치기 DragTarget 적용)
-        // -------------------------------------------------------
-        Expanded(
-          child: DragTarget<DragPayload>(
-            key: _contentKey,
-            onWillAccept: (data) => data != null,
-            onMove: (details) {
-              final RenderBox renderBox =
-              _contentKey.currentContext?.findRenderObject() as RenderBox;
-              final Size size = renderBox.size;
 
-              // pointerDragAnchorStrategy
-              // details.offset이 마우스 커서 좌표
-              final Offset localPos = renderBox.globalToLocal(details.offset);
-              _updateHoverAction(localPos, size);
-            },
-            onLeave: (_) => setState(() => _hoverAction = null),
-            onAccept: (data) {
-              // 드래그된 데이터(위젯)이 DragTarget 위젯 위에 놓였을때 호출
-              if (_hoverAction != null) {
-                widget.onTabDrop(data.sourceNodeId, data.tabId, _hoverAction!);
-              }
-              setState(() => _hoverAction = null);
-            },
-            builder: (context, candidateData, rejectedData) {
-              bool isHovering = candidateData.isNotEmpty;
-
-              return Stack(
-                children: [
-                  // (1) 실제 컨텐츠
-                  Container(
+                // -------------------------------------------------------
+                // 2. 컨텐츠 영역
+                // -------------------------------------------------------
+                Expanded(
+                  child: Container(
                     color: Colors.white,
                     alignment: Alignment.center,
                     child: widget.node.tabs.isEmpty
                         ? const Text("Empty")
                         : _buildContent(widget.node.tabs[widget.node.selectedTabIndex].categoryId),
                   ),
+                ),
+              ],
+            ),
 
-                  // (2) 하이라이트 오버레이 (배경 및 테두리)
-                  if (isHovering && _hoverAction != null)
-                    Positioned.fill(
-                      child: _buildDropOverlay(_hoverAction!),
-                    ),
+            // 오버레이: Reordering 상태가 아닐 때만 표시
+            if (isHovering && !isReorderingSelf && _hoverAction != null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: _buildDropOverlay(_hoverAction!),
+                ),
+              ),
 
-                  // (3) 중앙 셀렉터 아이콘
-                  if (isHovering)
-                    Center(
-                      child: _DockingSelectorVisual(
-                        highlightedAction: _hoverAction,
-                      ),
+            // Selector: 탭 순서 변경이 아닌 상태면 드래그하는 영역에 항상 표시
+            if (isHovering && !isReorderingSelf && _hoverAction != null)
+              Positioned.fill(
+                top: TAB_HEADER_HEIGHT,
+                child: Center(
+                  child: IgnorePointer(
+                    child: _DockingSelectorVisual(
+                      highlightedAction: _hoverAction,
                     ),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -966,6 +1087,7 @@ class _DraggableTab extends StatelessWidget {
   final VoidCallback onDragStarted;
   final VoidCallback onDragEnded;
   final Function(String tabId) onReorder;
+  final bool hasLeftTabHeader;
 
   // 피드백 위젯의 크기 상수 (중심점 계산용)
   static const double _feedbackWidth = 100;
@@ -980,17 +1102,17 @@ class _DraggableTab extends StatelessWidget {
     required this.onDragStarted,
     required this.onDragEnded,
     required this.onReorder,
+    required this.hasLeftTabHeader,
   });
 
   @override
   Widget build(BuildContext context) {
-    // 1. DragTarget: 다른 탭이 이 탭 위로 드래그될 때 순서 변경 감지
     return DragTarget<DragPayload>(
       onWillAccept: (data) {
-        // 같은 노드 내의 다른 탭일 경우만 수락
-        return data != null &&
-            data.sourceNodeId == nodeId &&
-            data.tabId != tab.id;
+        // 한 번이라도 나갔다 왔다면, 탭 자체의 DragTarget(순서변경용)은 동작하지 않아야 함
+        if (hasLeftTabHeader) return false;
+
+        return data != null && data.sourceNodeId == nodeId && data.tabId != tab.id;
       },
       onAccept: (data) {
         onReorder(data.tabId);
