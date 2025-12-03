@@ -617,11 +617,18 @@ class _GlobalSplitButton extends StatelessWidget {
         width: BTN_GLOBAL_SPLIT_SIZE,
         height: BTN_GLOBAL_SPLIT_SIZE,
         child: DragTarget<DragPayload>(
-          onWillAccept: (data) {
+          onWillAcceptWithDetails: (dragTargetDetails) {
             onHover(); // 글로벌 버튼에 진입하면 무조건 헤더 이탈로 간주
             return true;
           },
-          onAccept: (data) => onDrop(data.sourceNodeId, data.tabId),
+          // onWillAccept: (data) {
+          //   onHover(); // 글로벌 버튼에 진입하면 무조건 헤더 이탈로 간주
+          //   return true;
+          // },
+          onAcceptWithDetails: (dragTargetDetails) {
+            onDrop(dragTargetDetails.data.sourceNodeId, dragTargetDetails.data.tabId);
+          },
+          // onAccept: (data) => onDrop(data.sourceNodeId, data.tabId),
           builder: (context, candidateData, rejectedData) {
             bool isHovering = candidateData.isNotEmpty;
             return Stack(
@@ -880,10 +887,14 @@ class _DockingPaneState extends State<_DockingPane> {
   @override
   Widget build(BuildContext context) {
     return DragTarget<DragPayload>(
-      onWillAccept: (data) {
-        _currentPayload = data;
-        return data != null;
+      onWillAcceptWithDetails: (dragTargetDetails) {
+        _currentPayload = dragTargetDetails.data;
+        return true;
       },
+      // onWillAccept: (data) {
+      //   _currentPayload = data;
+      //   return data != null;
+      // },
       onMove: (details) {
         final RenderBox renderBox = context.findRenderObject() as RenderBox;
         final Size size = renderBox.size;
@@ -900,9 +911,9 @@ class _DockingPaneState extends State<_DockingPane> {
         // 전체영역 분할 버튼 다시 디폴트 값으로
         widget.onSetGlobalVisibility(false);
       },
-      onAccept: (data) {
+      onAcceptWithDetails: (dragTargetDetails) {
         if (_hoverAction != null) {
-          widget.onTabDrop(data.sourceNodeId, data.tabId, _hoverAction!);
+          widget.onTabDrop(dragTargetDetails.data.sourceNodeId, dragTargetDetails.data.tabId, _hoverAction!);
         }
         setState(() {
           _hoverAction = null;
@@ -911,6 +922,17 @@ class _DockingPaneState extends State<_DockingPane> {
         // 전체영역 분할 버튼 다시 디폴트 값으로
         widget.onSetGlobalVisibility(false);
       },
+      // onAccept: (data) {
+      //   if (_hoverAction != null) {
+      //     widget.onTabDrop(data.sourceNodeId, data.tabId, _hoverAction!);
+      //   }
+      //   setState(() {
+      //     _hoverAction = null;
+      //     _currentPayload = null;
+      //   });
+      //   // 전체영역 분할 버튼 다시 디폴트 값으로
+      //   widget.onSetGlobalVisibility(false);
+      // },
       builder: (context, candidateData, rejectedData) {
         bool isHovering = candidateData.isNotEmpty;
 
@@ -1166,17 +1188,27 @@ class _DraggableTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DragTarget<DragPayload>(
-      onWillAccept: (data) {
+      onWillAcceptWithDetails: (dragTargetDetails) {
         // 한 번이라도 나갔다 왔다면, 탭 자체의 DragTarget(순서변경용)은 동작하지 않아야 함
         if (hasLeftTabHeader) return false;
 
-        return data != null &&
-            data.sourceNodeId == nodeId &&
-            data.tabId != tab.id;
+        return dragTargetDetails.data.sourceNodeId == nodeId &&
+            dragTargetDetails.data.tabId != tab.id;
       },
-      onAccept: (data) {
-        onReorder(data.tabId);
+      // onWillAccept: (data) {
+      //   // 한 번이라도 나갔다 왔다면, 탭 자체의 DragTarget(순서변경용)은 동작하지 않아야 함
+      //   if (hasLeftTabHeader) return false;
+      //
+      //   return data != null &&
+      //       data.sourceNodeId == nodeId &&
+      //       data.tabId != tab.id;
+      // },
+      onAcceptWithDetails: (dragTargetDetails) {
+        onReorder(dragTargetDetails.data.tabId);
       },
+      // onAccept: (data) {
+      //   onReorder(data.tabId);
+      // },
       builder: (context, candidateData, rejectedData) {
         bool isHovering = candidateData.isNotEmpty;
 
