@@ -66,6 +66,7 @@ const APP_BACKGROUND_COLOR = Color(0xFFF0F2F5);
 const GENIE_ACCENT_COLOR = Color(0xFF52C2DF);
 const GENIE_ACCENT_COLOR_OP05 = Color.fromRGBO(82, 194, 223, 0.05);
 const GENIE_ACCENT_COLOR_OP10 = Color.fromRGBO(82, 194, 223, 0.1);
+const GENIE_ACCENT_COLOR_OP30 = Color.fromRGBO(82, 194, 223, 0.3);
 const ACCENT_PURPLE = Color(0xFF50CDEC);
 const ACCENT_PURPLE_ACTIVE = Color(0xFF329FC4);
 
@@ -237,6 +238,10 @@ class _DockingLayoutContentState extends ConsumerState<_DockingLayoutContent> {
     if (oldIndex == -1) return;
 
     setState(() {
+      if (oldIndex < targetIndex) {
+        targetIndex -= 1;
+      }
+
       TabData tab = node.tabs.removeAt(oldIndex);
       node.tabs.insert(targetIndex, tab);
       node.selectedTabIndex = targetIndex;
@@ -691,6 +696,9 @@ class _DraggableTab extends ConsumerStatefulWidget {
 class _DraggableTabState extends ConsumerState<_DraggableTab> {
   final ValueNotifier<Offset> _localPointerPos = ValueNotifier(Offset.zero);
 
+  // 현재 드래그가 탭의 왼쪽('left')인지 오른쪽('right')인지 저장
+  String? _hoverSide;
+
   @override
   void dispose() {
     _localPointerPos.dispose();
@@ -703,12 +711,41 @@ class _DraggableTabState extends ConsumerState<_DraggableTab> {
       onWillAcceptWithDetails: (details) {
         final hasLeft = ref.read(globalDragStateProvider).hasLeftTabHeader;
         if (hasLeft) return false;
+        // 자기 자신 위로는 드롭 불가
         return details.data.sourceNodeId == widget.nodeId && details.data.tabId != widget.tab.id;
       },
-      onAcceptWithDetails: (details) {
-        widget.onReorder(details.data.tabId, widget.index);
+      // 드래그 위치에 따라 왼쪽/오른쪽 판별
+      onMove: (details) {
+        final RenderBox box = context.findRenderObject() as RenderBox;
+        final Offset localPos = box.globalToLocal(details.offset);
+        final double width = box.size.width;
+
+        // 가로 중심 기준으로 왼쪽/오른쪽 결정
+        final String newSide = localPos.dx < (width / 2) ? 'left' : 'right';
+
+        if (_hoverSide != newSide) {
+          setState(() {
+            _hoverSide = newSide;
+          });
+        }
       },
-      builder: (context, _, __) {
+      onLeave: (_) {
+        setState(() => _hoverSide = null);
+      },
+      onAcceptWithDetails: (details) {
+        // 오른쪽에 드롭했다면 인덱스를 +1 하여 뒤로 이동
+        int targetIndex = widget.index;
+        if (_hoverSide == 'right') {
+          targetIndex += 1;
+        }
+
+        widget.onReorder(details.data.tabId, targetIndex);
+        setState(() => _hoverSide = null);
+      },
+      builder: (context, candidateData, rejectedData) {
+        // 드래그 대상이 들어왔을 때만 하이라이트 표시
+        final bool showHighlight = candidateData.isNotEmpty && _hoverSide != null;
+
         return Draggable<DragPayload>(
           data: DragPayload(widget.nodeId, widget.tab.id),
           onDragStarted: () => ref.read(globalDragStateProvider.notifier).startDrag(),
@@ -724,17 +761,8 @@ class _DraggableTabState extends ConsumerState<_DraggableTab> {
             valueListenable: _localPointerPos,
             builder: (context, currentPos, child) {
               double offsetY = 0;
-
-              // [수정] 헤더 이탈 상태 확인 (여기서는 ProviderScope 안이므로 ref 사용 가능하지 않음 - Draggable feedback은 Overlay)
-              // feedback은 독립된 트리로 생성되므로 ref.read를 직접 쓸 수 없음 (No ProviderScope found).
-              // 하지만 _DraggableTabState는 ProviderScope 안에 있음.
-              // feedback builder 내부가 실행될 때 _DraggableTabState의 ref를 참조하는 것은 클로저 캡처링으로 가능함.
-
               if (currentPos != Offset.zero) {
-                // 클로저를 통해 ref 접근
                 final hasLeft = ref.read(globalDragStateProvider).hasLeftTabHeader;
-
-                // [조건] 아직 헤더를 벗어난 적이 없을 때만 Y축 고정
                 if (!hasLeft) {
                   final Rect? headerRect = widget.getHeaderRect();
                   if (headerRect != null &&
@@ -757,7 +785,7 @@ class _DraggableTabState extends ConsumerState<_DraggableTab> {
                   width: 100, height: 36,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
+                    color: GENIE_ACCENT_COLOR_OP30,
                     border: Border.all(color: GENIE_ACCENT_COLOR),
                   ),
                   child: Text(widget.tab.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
@@ -765,22 +793,37 @@ class _DraggableTabState extends ConsumerState<_DraggableTab> {
               ),
             ),
           ),
-
-          childWhenDragging: Opacity(opacity: 0.3, child: _buildTabDesign(widget.isSelected, true)),
+          childWhenDragging: Opacity(opacity: 0.3, child: _buildTabDesign(widget.isSelected, false)),
+          // 하이라이트 처리를 위해 파라미터 전달
           child: GestureDetector(
             onTap: widget.onTap,
-            child: _buildTabDesign(widget.isSelected, false),
+            child: _buildTabDesign(widget.isSelected, showHighlight),
           ),
         );
       },
     );
   }
 
-  Widget _buildTabDesign(bool isSelected, bool isHovering) {
+  Widget _buildTabDesign(bool isSelected, bool showHighlight) {
+    // 하이라이트 보더 설정
+    BorderSide? leftBorder;
+    BorderSide? rightBorder;
+
+    if (showHighlight) {
+      const side = BorderSide(color: GENIE_ACCENT_COLOR, width: 3.0); // 두꺼운 파란선
+      if (_hoverSide == 'left') leftBorder = side;
+      if (_hoverSide == 'right') rightBorder = side;
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: isSelected ? Colors.white : Colors.transparent,
+        // 조건부 보더 적용
+        border: Border(
+          left: leftBorder ?? BorderSide.none,
+          right: rightBorder ?? BorderSide.none,
+        ),
       ),
       child: Text(
         widget.tab.title,
