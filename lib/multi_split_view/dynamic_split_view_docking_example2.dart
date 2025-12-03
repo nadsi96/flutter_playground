@@ -141,7 +141,7 @@ class _DockingLayoutExample2State extends State<DockingLayoutExample2> {
   LayoutNode? _rootNode; // 트리의 최상위 노드
   int _idCounter = 0;
   bool _isDragging = false; // 현재 드래그 중인지 여부 (전역 버튼 표시용)
-  bool _isGlobalButtonsVisible = true;
+  bool _isGlobalButtonsVisible = false;
 
   // 드래그 중 탭 헤더를 한 번이라도 벗어났는지 체크하는 플래그
   bool _bHasLeftTabHeader = false;
@@ -163,7 +163,7 @@ class _DockingLayoutExample2State extends State<DockingLayoutExample2> {
       setState(() {
         _isDragging = true;
         // 전체영역 버튼 노출 상태 초기화
-        _isGlobalButtonsVisible = true;
+        _isGlobalButtonsVisible = false;
         // 드래그 시작 시 초기화: 아직 벗어나지 않음
         _bHasLeftTabHeader = false;
       });
@@ -176,7 +176,7 @@ class _DockingLayoutExample2State extends State<DockingLayoutExample2> {
         // 이미 로직에 의해 false가 된 경우 중복 호출 방지
         _isDragging = false;
         // 전체영역 버튼 노출 상태 초기화
-        _isGlobalButtonsVisible = true;
+        _isGlobalButtonsVisible = false;
         // 탭 드래그 헤더영역 이탈 여부 초기화
         _bHasLeftTabHeader = false;
       });
@@ -892,13 +892,13 @@ class _DockingPaneState extends State<_DockingPane> {
           _updateHoverAction(localPos, size, _currentPayload!);
         }
       },
-      onLeave: (_) {
+      onLeave: (data) {
         setState(() {
           _hoverAction = null;
           _currentPayload = null;
         });
-        // 나갈 때는 Global Button 보이도록 복구
-        widget.onSetGlobalVisibility(true);
+        // 전체영역 분할 버튼 다시 디폴트 값으로
+        widget.onSetGlobalVisibility(false);
       },
       onAccept: (data) {
         if (_hoverAction != null) {
@@ -908,7 +908,8 @@ class _DockingPaneState extends State<_DockingPane> {
           _hoverAction = null;
           _currentPayload = null;
         });
-        widget.onSetGlobalVisibility(true);
+        // 전체영역 분할 버튼 다시 디폴트 값으로
+        widget.onSetGlobalVisibility(false);
       },
       builder: (context, candidateData, rejectedData) {
         bool isHovering = candidateData.isNotEmpty;
