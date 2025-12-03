@@ -70,6 +70,7 @@ const ACCENT_PURPLE = Color(0xFF50CDEC);
 const ACCENT_PURPLE_ACTIVE = Color(0xFF329FC4);
 
 const double BTN_GLOBAL_SPLIT_SIZE = 40;
+const double BTN_GLOBAL_SPLIT_HIGHLIGHT_THICKNESS = 6;
 const double TAB_TITLE_FONT_SIZE = 10;
 const double TAB_HEADER_HEIGHT = 36.0;
 const double BTN_DOCKING_SELECTOR_SIZE = 40;
@@ -472,25 +473,26 @@ class _DockingPaneState extends ConsumerState<_DockingPane> {
     if (inHeader) {
       if (isSelf) {
         if (hasLeftTabHeader) {
-          // 자기 자신 헤더지만, 이미 나갔다 왔다면 분할 모드 (임계값 내면 top, 아니면 center)
+          // 한 번 나갔다 들어오면 분할 모드
           newAction = localPosition.dy < DOCKING_PANE_BORDER_THRESHOLD ? 'top' : 'center';
           globalDragNotifier.setGlobalVisibility(true);
         } else {
-          // 순수 Reordering 모드
+          // 순수 Reordering 모드 -> Global Button 숨김
           newAction = null;
           globalDragNotifier.setGlobalVisibility(false);
         }
       } else {
-        // 남의 헤더: 기본 top/center
+        // 타 패널 헤더 -> 분할 모드
         newAction = localPosition.dy < DOCKING_PANE_BORDER_THRESHOLD ? 'top' : 'center';
         globalDragNotifier.setGlobalVisibility(true);
         globalDragNotifier.markLeftTabHeader();
       }
     } else {
-      // 컨텐츠 영역 진입: 무조건 헤더 이탈로 간주
+      // 컨텐츠 영역 -> Global Button 보임
       globalDragNotifier.markLeftTabHeader();
       globalDragNotifier.setGlobalVisibility(true);
 
+      // --- Selector & Border Logic ---
       final double contentHeight = size.height - TAB_HEADER_HEIGHT;
       final Offset contentCenter = Offset(size.width / 2, TAB_HEADER_HEIGHT + (contentHeight / 2));
       final double distFromCenter = (localPosition - contentCenter).distance;
@@ -508,12 +510,10 @@ class _DockingPaneState extends ConsumerState<_DockingPane> {
           else newAction = dy > 0 ? 'bottom' : 'top';
         }
       }
-      // 2. [추가] 테두리 감지 (영역 내 분할)
+      // 2. 테두리 감지
       else {
         double distLeft = localPosition.dx;
         double distRight = size.width - localPosition.dx;
-        // top 계산 시 헤더 높이를 고려할지, 전체 높이 기준일지는 디자인에 따라 다르나 보통 전체 기준 혹은 컨텐츠 기준
-        // 여기서는 전체 Pane 기준 테두리 감지
         double distTop = localPosition.dy;
         double distBottom = size.height - localPosition.dy;
 
@@ -525,13 +525,11 @@ class _DockingPaneState extends ConsumerState<_DockingPane> {
         } else if (minV < DOCKING_PANE_BORDER_THRESHOLD && minV <= minH) {
           newAction = distTop < distBottom ? 'top' : 'bottom';
         } else {
-          // 테두리도 아니고 Selector도 아니면 기본 센터
           newAction = 'center';
         }
       }
     }
 
-    // 상태 업데이트
     if (ref.read(hoverActionProvider(widget.node.id)) != newAction) {
       ref.read(hoverActionProvider(widget.node.id).notifier).state = newAction;
     }
@@ -546,10 +544,18 @@ class _DockingPaneState extends ConsumerState<_DockingPane> {
         final Offset localPos = box.globalToLocal(details.offset);
         _updateHoverAction(localPos, box.size, details.data);
       },
+
+      // [수정 핵심] onLeave에서 setGlobalVisibility(false)를 제거했습니다.
       onLeave: (_) {
+        // 해당 패널의 파란색 오버레이(Hover Action)는 지워야 함
         ref.read(hoverActionProvider(widget.node.id).notifier).state = null;
-        ref.read(globalDragStateProvider.notifier).setGlobalVisibility(false);
+
+        // 중요: 여기서 setGlobalVisibility(false)를 호출하면
+        // 마우스가 Global Button 위로 올라갔을 때(Pane을 떠났을 때)
+        // 버튼이 사라져버려서 깜빡임 현상이 발생함.
+        // 따라서 제거함. Global Button 숨김 처리는 endDrag() 등에서 담당.
       },
+
       onAcceptWithDetails: (details) {
         final action = ref.read(hoverActionProvider(widget.node.id));
         if (action != null) {
@@ -565,6 +571,7 @@ class _DockingPaneState extends ConsumerState<_DockingPane> {
           children: [
             Column(
               children: [
+                // 1. 헤더
                 Container(
                   key: _headerKey,
                   height: TAB_HEADER_HEIGHT,
@@ -594,6 +601,7 @@ class _DockingPaneState extends ConsumerState<_DockingPane> {
                     ],
                   ),
                 ),
+                // 2. 컨텐츠
                 Expanded(
                   child: Container(
                     color: Colors.white, alignment: Alignment.center,
@@ -605,6 +613,7 @@ class _DockingPaneState extends ConsumerState<_DockingPane> {
               ],
             ),
 
+            // 3. 오버레이
             if (isHovering)
               Consumer(
                 builder: (context, ref, _) {
@@ -629,6 +638,7 @@ class _DockingPaneState extends ConsumerState<_DockingPane> {
   }
 
   Widget _buildDropOverlay(String action) {
+    // ... 스타일 코드 동일 ...
     const double thickWidth = 8.0;
     const double thinWidth = 2.0;
 
@@ -785,35 +795,129 @@ class _DraggableTabState extends ConsumerState<_DraggableTab> {
 }
 
 class _GlobalSplitButton extends StatelessWidget {
-  final Alignment alignment; final IconData icon; final String action;
-  final Size parentSize; final Function(String, String) onDrop; final VoidCallback onHover;
+  // 전체영역 분할 버튼 위치 지정
+  final Alignment alignment;
+  final IconData icon;
+  final String action; // 상하좌우 구분
+  final Size parentSize; // 부모 영역 크기 (테두리 하이라이트 위치 계산용)
+  final Function(String srcNodeId, String tabId) onDrop;
+  final VoidCallback onHover; // 호버 시 상태 업데이트용
 
   const _GlobalSplitButton({
-    required this.alignment, required this.icon, required this.action,
-    required this.parentSize, required this.onDrop, required this.onHover,
+    super.key,
+    required this.alignment,
+    required this.icon,
+    required this.action,
+    required this.parentSize,
+    required this.onDrop,
+    required this.onHover,
   });
 
   @override
   Widget build(BuildContext context) {
     return Align(
       alignment: alignment,
-      child: DragTarget<DragPayload>(
-        onWillAcceptWithDetails: (_) { onHover(); return true; },
-        onAcceptWithDetails: (d) => onDrop(d.data.sourceNodeId, d.data.tabId),
-        builder: (context, candidateData, _) {
-          bool isHovering = candidateData.isNotEmpty;
-          return Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(
-              color: isHovering ? ACCENT_PURPLE : Colors.white,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.grey),
-            ),
-            child: Icon(icon, color: isHovering ? Colors.white : Colors.black),
-          );
-        },
+      child: SizedBox(
+        width: BTN_GLOBAL_SPLIT_SIZE,
+        height: BTN_GLOBAL_SPLIT_SIZE,
+        child: DragTarget<DragPayload>(
+          onWillAcceptWithDetails: (_) {
+            onHover(); // 글로벌 버튼에 진입하면 무조건 헤더 이탈로 간주
+            return true;
+          },
+          onAcceptWithDetails: (details) {
+            onDrop(details.data.sourceNodeId, details.data.tabId);
+          },
+          builder: (context, candidateData, rejectedData) {
+            bool isHovering = candidateData.isNotEmpty;
+            return Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                // 1. 하이라이트 (호버 시에만 표시)
+                if (isHovering)
+                  _buildHighlight(action, BTN_GLOBAL_SPLIT_HIGHLIGHT_THICKNESS),
+
+                // 2. 원형 버튼
+                Container(
+                  width: BTN_GLOBAL_SPLIT_SIZE,
+                  height: BTN_GLOBAL_SPLIT_SIZE,
+                  decoration: BoxDecoration(
+                    color: isHovering
+                        ? ACCENT_PURPLE
+                        : Colors.white.withOpacity(0.9),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 4,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                    border: Border.all(
+                      color: isHovering
+                          ? ACCENT_PURPLE_ACTIVE
+                          : Colors.grey.shade300,
+                    ),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: isHovering ? Colors.white : Colors.grey[700],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
+  }
+
+  Widget _buildHighlight(String action, double thickness) {
+    // 버튼의 중심에서 부모 컨테이너의 중심으로 좌표 변환 계산
+    // 버튼은 Align으로 배치되어 있으므로, Stack의 center(0,0) 기준이 아니라 버튼 자체의 center가 기준이 됨
+    // 따라서 부모 크기의 절반만큼 이동시켜야 화면 끝에 붙음
+
+    double sizeBtnHalf = BTN_GLOBAL_SPLIT_SIZE / 2;
+    double translateHor = -(parentSize.width / 2) + sizeBtnHalf;
+    double translateVer = -(parentSize.height / 2) + sizeBtnHalf;
+
+    // 액션에 따라 화면 가장자리에 파란색 하이라이트 바 표시
+    if (action == 'top') {
+      return Positioned(
+        top: 0, // 버튼 기준 위쪽
+        // 가로로는 화면 전체 너비
+        // 버튼이 TopCenter에 있다면 left 이동 필요
+        left: translateHor,
+        width: parentSize.width,
+        height: thickness,
+        child: Container(color: ACCENT_PURPLE),
+      );
+    } else if (action == 'bottom') {
+      return Positioned(
+        bottom: 0,
+        left: translateHor,
+        width: parentSize.width,
+        height: thickness,
+        child: Container(color: ACCENT_PURPLE),
+      );
+    } else if (action == 'left') {
+      return Positioned(
+        left: 0,
+        top: translateVer,
+        width: thickness,
+        height: parentSize.height,
+        child: Container(color: ACCENT_PURPLE),
+      );
+    } else { // right
+      return Positioned(
+        right: 0,
+        top: translateVer,
+        width: thickness,
+        height: parentSize.height,
+        child: Container(color: ACCENT_PURPLE),
+      );
+    }
   }
 }
 
