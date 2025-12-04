@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_playground/docking_layout/docking_layout_example.dart';
 import 'package:flutter_playground/multi_split_view/dynamic_split_view_example.dart';
 import 'package:flutter_playground/multi_split_view/multi_split_view_example.dart';
+import 'package:flutter_playground/reorderble_tab_layout/reorderble_tab_layout_example.dart';
 import 'package:flutter_playground/riverpod/riverpod_counter_page.dart';
 
 import 'multi_split_view/dynamic_split_view_docking_example.dart';
@@ -31,7 +32,8 @@ final routes = {
   '/dynamic_split_view_example': (context) => DynamicSplitViewExample(),
   '/dynamic_multi_split_view_docking_example': (context) => DockingLayoutExample(),
   '/dynamic_multi_split_view_docking_example2': (context) => DockingLayoutExample2(),
-  '/docking_layout_example': (context) => DockingExamplePage()
+  '/docking_layout_example': (context) => DockingExamplePage(),
+  '/reorderable_tab_layout_example': (context) => ReorderableTabLayoutExample(),
 };
 class Home extends StatelessWidget{
 
@@ -68,6 +70,7 @@ class Home extends StatelessWidget{
               menuButton(context, "/dynamic_multi_split_view_docking_example"),
               menuButton(context, "/dynamic_multi_split_view_docking_example2"),
               menuButton(context, "/docking_layout_example"),
+              menuButton(context, "/reorderable_tab_layout_example"),
             ],
           ),
         )
