@@ -864,10 +864,10 @@ class _GlobalSplitButton extends StatelessWidget {
         width: BTN_GLOBAL_SPLIT_SIZE,
         height: BTN_GLOBAL_SPLIT_SIZE,
         child: DragTarget<DragPayload>(
-          onWillAcceptWithDetails: (_) {
-            onHover(); // 글로벌 버튼에 진입하면 무조건 헤더 이탈로 간주
-            return true;
-          },
+          // onWillAcceptWithDetails: (_) {
+          //   // onHover(); // 글로벌 버튼에 진입하면 무조건 헤더 이탈로 간주
+          //   return true;
+          // },
           onAcceptWithDetails: (details) {
             onDrop(details.data.sourceNodeId, details.data.tabId);
           },
