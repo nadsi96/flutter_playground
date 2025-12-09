@@ -20,7 +20,7 @@ class ReorderableTabLayoutState extends State<ReorderableTabLayoutExample> {
 
   // 현재 선택된 탭 id
   int selectedTabId = 1;
-
+  int? draggingTabId;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +83,7 @@ class ReorderableTabLayoutState extends State<ReorderableTabLayoutExample> {
 
   /// tab 아이템 작성
   Widget buildDraggableTab(int idx, TabData tabData){
+    print("buildDraggableTab tabData.tabId: ${tabData.tabId}");
     bool bSelected = selectedTabId == tabData.tabId;
 
     Widget tabWidget({bool bGhost = false, bool bFeedback = false}) {
@@ -107,6 +108,17 @@ class ReorderableTabLayoutState extends State<ReorderableTabLayoutExample> {
 
     return DragTarget<TabData>(
         onWillAcceptWithDetails: (dragTargetDetail){
+          print("dragTargetDetail.data.tabId: ${dragTargetDetail.data.tabId}, tabData.tabId: ${tabData.tabId}");
+          final targetIdx = tabItemList.indexWhere((item) {
+            return item.tabId == dragTargetDetail.data.tabId;
+          });
+          print("idx: $idx, targetIdx: $targetIdx");
+          // if(idx != targetIdx){
+          //   setState(() {
+          //     moveTab(dragTargetDetail.data, idx);
+          //   });
+          //   return true;
+          // }
           if(dragTargetDetail.data.tabId != tabData.tabId) {
             setState(() {
               moveTab(dragTargetDetail.data, idx);
@@ -116,19 +128,29 @@ class ReorderableTabLayoutState extends State<ReorderableTabLayoutExample> {
           return false;
         },
         builder: (context, candidateData, rejectedData){
+          print("bGhost: ${draggingTabId == tabData.tabId}");
           return Draggable<TabData>(
             data: tabData,
             feedback: Container(
-              color: Colors.transparent,
+              color: Colors.blue,
               child: Opacity(
                 opacity: 0.7,
                 child: tabWidget(bFeedback: true),
               ),
             ),
-            childWhenDragging: tabWidget(bGhost: true),
-            onDragStarted: (){},
+            childWhenDragging: tabWidget(bGhost: draggingTabId == tabData.tabId),
+            onDragStarted: (){
+              setState(() {
+                draggingTabId = tabData.tabId;
+              });
+            },
+            onDragEnd: (details) {
+              setState(() {
+                draggingTabId = null;
+              });
+            },
             key: ValueKey(tabData.tabId),
-            child: GestureDetector(
+            child: draggingTabId == tabData.tabId ? tabWidget(bGhost: true) : GestureDetector(
               onTap: () {
                 setState( () {
                   selectedTabId = tabData.tabId;
@@ -143,11 +165,12 @@ class ReorderableTabLayoutState extends State<ReorderableTabLayoutExample> {
 
   void moveTab(TabData tabData, int newIdx){
     int oldIdx = tabItemList.indexOf(tabData);
+    print("moveTab :: oldIdx: $oldIdx, newIdx: $newIdx");
     if(oldIdx == -1) return;
 
-    if(oldIdx < newIdx){
-      newIdx -= 1;
-    }
+    // if(oldIdx < newIdx){
+    //   newIdx -= 1;
+    // }
 
     TabData temp = tabItemList.removeAt(oldIdx);
     tabItemList.insert(newIdx, temp);
