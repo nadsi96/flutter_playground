@@ -35,6 +35,7 @@ class ReorderableTabLayoutState extends State<ReorderableTabLayoutExample> {
     });
 
     return Scaffold(
+      appBar: AppBar(),
       body: Column(
         children: [
           // 탭바 영역

@@ -59,6 +59,7 @@ class DockingExamplePageState extends State<DockingExamplePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+        appBar: AppBar(),
         body: TabbedViewTheme(
             data: TabbedViewThemeData.classic(),
             child: Container(

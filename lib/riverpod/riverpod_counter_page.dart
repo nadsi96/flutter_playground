@@ -45,6 +45,7 @@ class _RiverpodCounterPage extends ConsumerWidget{
     print("CounterScreen build run");
 
     return Scaffold(
+      appBar: AppBar(),
       body: Center(
         // child: Text('$count', style: const TextStyle(fontSize: 32))
           child: txtCounter()
