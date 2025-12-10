@@ -69,6 +69,7 @@ class MultiWindowExampleState extends State<MultiWindowExample> with WindowListe
                   WindowConfiguration(
                     arguments: jsonEncode({
                       "type": "newWindow",
+                      "targetScreen": "multi_window_example",
                       "data": {
                         "count": count
                       }

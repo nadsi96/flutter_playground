@@ -92,12 +92,14 @@ class MyApp extends StatelessWidget {
     Widget? home;
     print("arguments: $arguments");
     if(arguments != null){
-      if(arguments?["type"] == "newWindow"){
-        final data = arguments?["data"];
-        home = NewWindow(windowId: windowId!, count: data["count"] ?? -1);
-        return MaterialApp(
-          home: home
-        );
+      if(arguments!["type"] == "newWindow"){
+        if(arguments!["targetScreen"] == "multi_window_example"){
+          final data = arguments!["data"];
+          home = NewWindow(windowId: windowId!, count: data["count"] ?? -1);
+          return MaterialApp(
+            home: home
+          );
+        }
       }
     }
     return MaterialApp(
