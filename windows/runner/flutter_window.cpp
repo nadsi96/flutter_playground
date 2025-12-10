@@ -4,6 +4,9 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
+// desktop_multi_window 추가
+#include <desktop_multi_window/desktop_multi_window_plugin.h>
+
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
 
@@ -25,6 +28,14 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+
+    // 서브 윈도우 생성 시 플러그인 등록 >>
+    DesktopMultiWindowPlugin::SetWindowCreatedCallback([](void *controller) {
+        auto *flutter_view_controller = reinterpret_cast<flutter::FlutterViewController *>(controller);
+        RegisterPlugins(flutter_view_controller->engine());
+    });
+    // << 서브 윈도우 생성 시 플러그인 등록
+
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {

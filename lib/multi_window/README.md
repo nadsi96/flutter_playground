@@ -12,37 +12,43 @@ flutter pub add desktop_multi_window
    *   **데이터가 초기화되는 이유**: `main()` 함수가 다시 실행되면 `WindowController`에서 받아오는 `arguments`는 **처음 윈도우를 생성할 때 넘겨준 값**(`count: 1`) 그대로입니다. 따라서 `NewWindow` 위젯이 `count: 1`로 다시 생성되면서, `setState`로 증가시켰던 값은 메모리에서 사라지고 초기값으로 돌아갑니다.
 
 
-# bitsdojo_window를 사용하여 윈도 커스텀
+# window_manager를 사용하여 윈도 커스텀
 * 윈도 타이틀바 커스텀
 * 생성 시 초기 사이즈 지정 등
 ```
-flutter pub add bitsdojo_window
+flutter pub add window_manager
 ```
-## 사용하기 위해 초기 세팅 필요함
+## 가이드에는 설명 없으나 사용하기 위해 초기 세팅 필요함
+* 단순 실행에는 이상 없지만, 새 윈도를 띄우면 새로운 Flutter 엔진이 생성되지만, 이 엔진에는 window_manager 플러그인이 네이티브에 등록되지 않아서 오류 나옴
+* 메인은 flutter가 알아서 등록하지만, 서브 윈도는 직접 수정해야함
+   
 ### MAC OS
-Inside your application folder, go to `macos\runner\MainFlutterWindow.swift` and change the code look like this:
+MainFlutterWindow.swift (또는 프로젝트 설정에 따라 AppDelegate.swift) 파일에 서브 윈도우 생성 시 플러그인을 등록하는 콜백 추가
 
 ```diff
 // macos/runner/MainFlutterWindow.swift
 
   import Cocoa
   import FlutterMacOS
-+ import bitsdojo_window_macos
++ import desktop_multi_window
 
-- class MainFlutterWindow: NSWindow {
-+ class MainFlutterWindow: BitsdojoWindow {
-+     override func bitsdojo_window_configure() -> UInt {
-+     return BDW_CUSTOM_FRAME | BDW_HIDE_ON_STARTUP
-+   }
-      override func awakeFromNib() {
 
+  class MainFlutterWindow: NSWindow {
+    override func awakeFromNib() {
       ...
+      
+      RegisterGeneratedPlugins(registry: flutterViewController)
+      
++     FlutterMultiWindowPlugin.setOnWindowCreatedCallback { controller in
++       RegisterGeneratedPlugins(registry: controller)
++     }
 
+      super.awakeFromNib()
     }
   }
 ```
 ### Windows
-Inside your application folder, go to `windows\runner\main.cpp` and change the code look like this:
+flutter_window.cpp 파일에 서브 윈도우 생성 시 플러그인을 등록하는 콜백 추가
 
 ```diff
 // windows/runner/main.cpp
@@ -52,10 +58,25 @@ Inside your application folder, go to `windows\runner\main.cpp` and change the c
   #include "flutter_window.h"
   #include "utils.h"
 
-+ #include <bitsdojo_window_windows/bitsdojo_window_plugin.h>
-+ auto bdw = bitsdojo_window_configure(BDW_CUSTOM_FRAME | BDW_HIDE_ON_STARTUP);
++ #include <desktop_multi_window/desktop_multi_window_plugin.h>
 
   int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   ...
+  
+  if (!flutter_controller_->engine() || !flutter_controller_->view()) {
+    return false;
+  }
+
+  RegisterPlugins(flutter_controller_->engine());
+  
++ DesktopMultiWindowPlugin::SetWindowCreatedCallback([](void *controller) {
++   auto *flutter_view_controller = reinterpret_cast<flutter::FlutterViewController *>(controller);
++   RegisterPlugins(flutter_view_controller->engine());
++ });
+  
+  SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  
+  ...
+
 ```

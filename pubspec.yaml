@@ -39,6 +39,8 @@ dependencies:
   docking: ^1.16.1
   shared_preferences: ^2.5.3
   uuid: ^4.5.2
+  desktop_multi_window: ^0.3.0
+  window_manager: ^0.5.1
 
 dev_dependencies:
   flutter_test:

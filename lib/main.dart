@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:bitsdojo_window/bitsdojo_window.dart';
+// import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_playground/docking_layout/docking_layout_example.dart';
@@ -10,6 +10,7 @@ import 'package:flutter_playground/multi_split_view/multi_split_view_example.dar
 import 'package:flutter_playground/multi_window/multi_window_example.dart';
 import 'package:flutter_playground/reorderble_tab_layout/reorderble_tab_layout_example.dart';
 import 'package:flutter_playground/riverpod/riverpod_counter_page.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'multi_split_view/dynamic_split_view_docking_example.dart';
 import 'multi_split_view/dynamic_split_view_docking_example2.dart';
@@ -18,27 +19,28 @@ void main() async{
 
   WidgetsFlutterBinding.ensureInitialized();
 
-  /// 타이틀바 커스텀
-  /// bitsdojo_window
-  /// 사용 위한 네이티브 코드 확인
-  ///  windows
-  ///  windows\runner\main.cpp
-  ///  macos
-  ///  macos\runner\MainFlutterWindow.swift
-  ///  해당 파일 주석 참조 ( // bitsdojo)
-  ///
-  /// BDW_CUSTOM_FRAME: 커스텀 윈도 타이틀바, 버튼 사용 시 추가
-  /// BDW_HIDE_ON_STARTUP: 시작 시 윈도 숨김
-  ///                     아래 코드에서 show 되기 전까지 노출되지 않음
-  if(Platform.isWindows || Platform.isMacOS){
-    doWhenWindowReady(() {
-      appWindow.minSize = const Size(400, 300);
-      appWindow.size = const Size(600, 450);
-      appWindow.alignment = Alignment.center;
-      appWindow.show();
-    });
-  }
+  // /// 타이틀바 커스텀
+  // /// bitsdojo_window
+  // /// 사용 위한 네이티브 코드 확인
+  // ///  windows
+  // ///  windows\runner\main.cpp
+  // ///  macos
+  // ///  macos\runner\MainFlutterWindow.swift
+  // ///  해당 파일 주석 참조 ( // bitsdojo)
+  // ///
+  // /// BDW_CUSTOM_FRAME: 커스텀 윈도 타이틀바, 버튼 사용 시 추가
+  // /// BDW_HIDE_ON_STARTUP: 시작 시 윈도 숨김
+  // ///                     아래 코드에서 show 되기 전까지 노출되지 않음
+  // if(Platform.isWindows || Platform.isMacOS){
+  //   doWhenWindowReady(() {
+  //     appWindow.minSize = const Size(400, 300);
+  //     appWindow.size = const Size(600, 450);
+  //     appWindow.alignment = Alignment.center;
+  //     appWindow.show();
+  //   });
+  // }
 
+  Map<String, dynamic>? arguments;
   /// multi window test
   /// arguments에 데이터를 jsonEncode로 전송
   /// jsonDecode로 풀어서 값 확인
@@ -48,14 +50,26 @@ void main() async{
 
     // 최초 실행이거나 새창을 열 때 arguments가 없다면 arguments는 빈 문자열
     if(windowController.arguments.isNotEmpty) {
-      final arguments = jsonDecode(windowController.arguments);
-      runApp(MyApp(arguments: arguments));
-      return;
-
+      arguments = jsonDecode(windowController.arguments);
     }
+
+    /// window_manager로 변경 >>
+    await windowManager.ensureInitialized();
+
+    WindowOptions windowOptions = WindowOptions(
+      size: Size(600, 450),
+      minimumSize: Size(400, 300),
+      center: windowController.arguments.isEmpty,
+    );
+
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+    /// << window_manager로 변경
   }
 
-  runApp(MyApp());
+  runApp(MyApp(arguments: arguments));
 }
 
 class MyApp extends StatelessWidget {
