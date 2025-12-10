@@ -2,11 +2,54 @@ import 'dart:convert';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 
-class MultiWindowExample extends StatelessWidget {
+class MultiWindowExample extends StatefulWidget {
+  MultiWindowExample({super.key});
 
-  const MultiWindowExample({super.key});
+  @override
+  State<StatefulWidget> createState() {
+    return MultiWindowExampleState();
+  }
 
+}
+
+class MultiWindowExampleState extends State<MultiWindowExample> with WindowListener{
+
+  List<String> childWindowIds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+  }
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
+
+  Future<void> initWindowCloseHandler() async{
+    // 닫기버튼 눌렀을 때,
+    // 바로 종료하지 않고, onWindowClose 호출되도록
+    await windowManager.setPreventClose(true);
+  }
+
+  @override
+  void onWindowClose() async{
+    for(final childWindowId in childWindowIds) {
+      // 서브 윈도에 close 메시지 전송
+      final channel = WindowMethodChannel(
+        "window_control_${childWindowId}",
+        mode: ChannelMode.unidirectional
+      );
+      await channel.invokeMethod("close");
+    }
+
+    // 메인 윈도 종료
+    await windowManager.destroy();
+  }
   @override
   Widget build(BuildContext context) {
 
@@ -32,7 +75,7 @@ class MultiWindowExample extends StatelessWidget {
                     }),
                   )
               );
-              await controller.show();
+              childWindowIds.add(controller.windowId);
             }),
           ],
         ),
@@ -55,8 +98,10 @@ class MultiWindowExample extends StatelessWidget {
 
 
 class NewWindow extends StatefulWidget{
+  String windowId;
   int count;
-  NewWindow({super.key, required this.count});
+
+  NewWindow({super.key, required this.windowId, required this.count});
 
   @override
   State<StatefulWidget> createState() {
@@ -65,10 +110,36 @@ class NewWindow extends StatefulWidget{
 }
 
 class NewWindowState extends State<NewWindow>{
+
+  late final WindowMethodChannel _windowMethodChannel;
+  @override
+  void initState() {
+    super.initState();
+
+    // 해당 윈도 전용 채널 생성
+    _windowMethodChannel = WindowMethodChannel(
+        "window_control_${widget.windowId}",
+        mode: ChannelMode.unidirectional
+    );
+
+    // 메시지 핸들러 등록
+    _windowMethodChannel.setMethodCallHandler(handleMethodCallback);
+  }
+
+  Future<dynamic> handleMethodCallback(MethodCall call) async {
+
+    // 종료 처리
+    if(call.method == "close") {
+      await windowManager.close();
+      return "closed";
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(title: Text("New Window")),
+        appBar: AppBar(title: Text("New Window ${widget.windowId}")),
         body: Center(
             child: Text("new window count: ${widget.count}")
         ),

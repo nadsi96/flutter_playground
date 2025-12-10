@@ -15,8 +15,9 @@ import 'package:window_manager/window_manager.dart';
 import 'multi_split_view/dynamic_split_view_docking_example.dart';
 import 'multi_split_view/dynamic_split_view_docking_example2.dart';
 
-void main() async{
+void main(List<String> args) async{
 
+  print("args: $args");
   WidgetsFlutterBinding.ensureInitialized();
 
   // /// 타이틀바 커스텀
@@ -40,6 +41,7 @@ void main() async{
   //   });
   // }
 
+  String? windowId;
   Map<String, dynamic>? arguments;
   /// multi window test
   /// arguments에 데이터를 jsonEncode로 전송
@@ -49,6 +51,14 @@ void main() async{
     final windowController = await WindowController.fromCurrentEngine();
 
     // 최초 실행이거나 새창을 열 때 arguments가 없다면 arguments는 빈 문자열
+    // 최초 실행이면 args = 빈 배열
+    // 새로운 윈도우라면 args[0]: "multi_window"
+    //               args[1]: windowId
+    //               args[2]: == arguments
+    if(args.isNotEmpty && args.first == "multi_window"){
+      // arguments = jsonDecode(windowController.arguments);
+      windowId = args[1];
+    }
     if(windowController.arguments.isNotEmpty) {
       arguments = jsonDecode(windowController.arguments);
     }
@@ -69,21 +79,22 @@ void main() async{
     /// << window_manager로 변경
   }
 
-  runApp(MyApp(arguments: arguments));
+  runApp(MyApp(windowId: windowId, arguments: arguments));
 }
 
 class MyApp extends StatelessWidget {
+  String? windowId;
   Map<String, dynamic>? arguments;
-  MyApp({super.key, this.arguments});
+  MyApp({super.key, this.windowId, this.arguments});
 
   @override
   Widget build(BuildContext context) {
-    Widget? home = null;
+    Widget? home;
     print("arguments: $arguments");
     if(arguments != null){
       if(arguments?["type"] == "newWindow"){
         final data = arguments?["data"];
-        home = NewWindow(count: data["count"] ?? -1);
+        home = NewWindow(windowId: windowId!, count: data["count"] ?? -1);
         return MaterialApp(
           home: home
         );
