@@ -15,6 +15,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'multi_split_view/dynamic_split_view_docking_example.dart';
 import 'multi_split_view/dynamic_split_view_docking_example2.dart';
+import 'multi_window_dnd/super_dnd_example/super_dnd_example.dart';
 
 void main(List<String> args) async{
 
@@ -121,6 +122,8 @@ final routes = {
   '/docking_layout_example': (context) => DockingExamplePage(),
   '/reorderable_tab_layout_example': (context) => ReorderableTabLayoutExample(),
   '/multi_window_example': (context) => MultiWindowExample(),
+  '/super_dnd_example': (context) => SuperDndExample(),
+
 };
 class Home extends StatelessWidget{
 
@@ -161,6 +164,7 @@ class Home extends StatelessWidget{
                 menuButton(context, "/docking_layout_example"),
                 menuButton(context, "/reorderable_tab_layout_example"),
                 menuButton(context, "/multi_window_example"),
+                menuButton(context, "/super_dnd_example"),
               ],
             ),
           )
