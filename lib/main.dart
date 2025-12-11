@@ -3,6 +3,7 @@ import 'dart:io';
 
 // import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_playground/docking_layout/docking_layout_example.dart';
 import 'package:flutter_playground/multi_split_view/dynamic_split_view_example.dart';
@@ -47,7 +48,8 @@ void main(List<String> args) async{
   /// arguments에 데이터를 jsonEncode로 전송
   /// jsonDecode로 풀어서 값 확인
   /// multi_window_example.dart open new window 확인
-  if(Platform.isWindows || Platform.isMacOS) {
+  print("kIsWeb: $kIsWeb");
+  if(!kIsWeb && (Platform.isWindows || Platform.isMacOS)) {
     final windowController = await WindowController.fromCurrentEngine();
 
     // 최초 실행이거나 새창을 열 때 arguments가 없다면 arguments는 빈 문자열
