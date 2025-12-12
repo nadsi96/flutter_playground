@@ -45,7 +45,9 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
   late WindowMethodChannel windowChannel;
 
   void initWindow() async {
-    await windowManager.setPreventClose(true);
+    if(widget.windowId == "main") {
+      await windowManager.setPreventClose(true);
+    }
 
     windowChannel = WindowMethodChannel(
         getWindowChannelName(widget.windowId),
@@ -127,7 +129,7 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
       // 메인 윈도 종료면 서브 윈도들 종료 처리
       exit(0);
     } else{
-      await windowManager.destroy();
+      super.onWindowClose();
     }
     // super.onWindowClose();
   }
