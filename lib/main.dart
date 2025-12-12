@@ -112,6 +112,7 @@ class MyApp extends StatelessWidget {
               id: tabData["id"],
               title: tabData["title"],
               content: tabData["content"],
+              count: tabData["count"] ?? 0,
             ),
           );
           // return MaterialApp(

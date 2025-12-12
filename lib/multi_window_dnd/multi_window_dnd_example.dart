@@ -14,7 +14,9 @@ class TabData{
   String title;
   String content;
 
-  TabData({required this.id, required this.title, required this.content});
+  int count = 0;
+
+  TabData({required this.id, required this.title, required this.content, this.count = 0});
 }
 
 class DragPayload {
@@ -27,7 +29,7 @@ class DragPayload {
 class MultiWindowDndExample extends StatefulWidget{
 
   final String windowId;
-  final TabData? tabData;
+  TabData? tabData;
 
   MultiWindowDndExample({required this.windowId, this.tabData});
 
@@ -86,6 +88,8 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
         ));
       }
     }
+
+    widget.tabData = tabs[0];
   }
 
   @override
@@ -111,9 +115,17 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
   }
 
   void removeTab(String tabId) {
-    setState(() {
-      tabs.removeWhere((tabItem) => tabItem.id == tabId);
-    });
+    final removeTargetIdx = tabs.indexWhere((tabItem) => tabItem.id == tabId);
+    if(removeTargetIdx > -1) {
+      int selectTargetIdx = tabs.length - 2;
+      if(removeTargetIdx > 0){
+        selectTargetIdx = removeTargetIdx - 1;
+      }
+      setState(() {
+        widget.tabData = tabs[selectTargetIdx];
+        tabs.removeWhere((tabItem) => tabItem.id == tabId);
+      });
+    }
   }
 
   void checkClose(){
@@ -149,6 +161,13 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
         }
       },
       onPerformDrop: (event) async {
+        // final item = event.session.items.first;
+        // final tabData = item.localData as TabData;
+        // if(!tabs.any((tab) => tab.id == tabData.id)) {
+        //   setState(() {
+        //     tabs.add(tabData);
+        //   });
+        // }
         final item = event.session.items.first;
         final dataMap = item.localData as Map<String, dynamic>;
 
@@ -157,7 +176,7 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
           id: dataMap["tabData"]["id"],
           title: dataMap["tabData"]["title"],
           content: dataMap["tabData"]["content"],
-
+          count: dataMap["tabData"]["count"],
         );
         final payload = DragPayload(
             srcWindowId: srcWindowId,
@@ -176,7 +195,7 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
           await requestRemoveTab(payload.srcWindowId, payload.tabData.id);
         }
       },
-      child: Container(
+      child: SizedBox(
         height: 50,
         width: double.infinity,
         child: Row(
@@ -220,32 +239,51 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
             "tabData": {
               "id": tabData.id,
               "title": tabData.title,
-              "content": tabData.content
+              "content": tabData.content,
+              "count": tabData.count
             }
           }
         );
+        // final dragItem = DragItem(
+        //   localData: json.encode(widget.tabData)
+        // );
 
-        dragItem.add(Formats.plainText(tabData.title));
-
+        // dragItem.add(Formats.plainText(tabData.title));
         return dragItem;
       },
       allowedOperations: () {
         return [DropOperation.copy];
       },
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        color: Colors.red,
-        child: Row(
-          children: [
-            Text(tabData.title),
-            SizedBox(width: 8),
-            InkWell(
-              onTap: () {
-                createNewWindow(tabData);
-              },
-              child: Icon(Icons.add_box_outlined, size: 24),
+      child: DraggableWidget(
+        child: InkWell(
+          onTap: () {
+            int targetIdx = tabs.indexWhere((t) => t.id == tabData.id);
+            if(targetIdx > -1) {
+              setState(() {
+                // selectedTabIdx = targetIdx;
+                widget.tabData = tabs[targetIdx];
+              });
+            }
+          },
+          child: Container(
+            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            color: Colors.red,
+            child: Row(
+              children: [
+                Text(tabData.title),
+                SizedBox(width: 8),
+                InkWell(
+                  onTap: () {
+                    if(tabs.length > 1){
+                      removeTab(tabData.id);
+                      createNewWindow(tabData);
+                    }
+                  },
+                  child: Icon(Icons.add_box_outlined, size: 24),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
       dragBuilder: (context, child) {
@@ -266,7 +304,8 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
     Map<String, dynamic> mapTabData = {
       "id": tabData.id,
       "title": tabData.title,
-      "content": tabData.content
+      "content": tabData.content,
+      "count": tabData.count,
     };
 
     final controller = await WindowController.create(
@@ -294,10 +333,34 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
               color: Colors.grey,
               child: Center(
                 child: Text(
-                  tabs.isEmpty && tabs.length > selectedTabIdx ? "Empty" :  tabs[selectedTabIdx].content
+                  tabs.isEmpty || widget.tabData == null ? "Empty" :  "${widget.tabData!.content} ${widget.tabData!.count}"
                 )
               )
             )
+          )
+        ]
+      ),
+      floatingActionButton: Row(
+        children: [
+          FloatingActionButton(
+            onPressed: () {
+              if(widget.tabData != null){
+                setState(() {
+                  widget.tabData!.count -= 1;
+                });
+              }
+            },
+            child: Icon(Icons.exposure_minus_1)
+          ),
+          FloatingActionButton(
+            onPressed: () {
+              if(widget.tabData != null){
+                setState(() {
+                  widget.tabData!.count += 1;
+                });
+              }
+            },
+              child: Icon(Icons.plus_one)
           )
         ]
       ),
