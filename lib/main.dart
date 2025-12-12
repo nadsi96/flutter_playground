@@ -6,6 +6,7 @@ import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_playground/docking_layout/docking_layout_example.dart';
+import 'package:flutter_playground/drag_boundary_example/drag_boundary_example.dart';
 import 'package:flutter_playground/multi_split_view/dynamic_split_view_example.dart';
 import 'package:flutter_playground/multi_split_view/multi_split_view_example.dart';
 import 'package:flutter_playground/multi_window/multi_window_example.dart';
@@ -148,6 +149,7 @@ final routes = {
   '/multi_window_example': (context) => MultiWindowExample(),
   '/super_dnd_example': (context) => SuperDndExample(),
   '/multi_window_dnd_example': (context) => multiWindowDndExample.MultiWindowDndExample(windowId: "main"),
+  '/drag_boundary_example': (context) => DragBoundaryExample(),
 
 };
 class Home extends StatelessWidget{
@@ -191,6 +193,7 @@ class Home extends StatelessWidget{
                 menuButton(context, "/multi_window_example"),
                 menuButton(context, "/super_dnd_example"),
                 menuButton(context, "/multi_window_dnd_example"),
+                menuButton(context, "/drag_boundary_example"),
 
               ],
             ),
