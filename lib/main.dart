@@ -15,6 +15,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'multi_split_view/dynamic_split_view_docking_example.dart';
 import 'multi_split_view/dynamic_split_view_docking_example2.dart';
+import 'multi_window_dnd/multi_window_dnd_example.dart' as multiWindowDndExample;
 import 'multi_window_dnd/super_dnd_example/super_dnd_example.dart';
 
 void main(List<String> args) async{
@@ -102,13 +103,35 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             home: home
           );
+        } else if(arguments!["targetScreen"] == "multi_window_dnd_example") {
+          final data = arguments!["data"];
+          final tabData = data["tabData"];
+          home = multiWindowDndExample.MultiWindowDndExample(
+            windowId: windowId!,
+            tabData: multiWindowDndExample.TabData(
+              id: tabData["id"],
+              title: tabData["title"],
+              content: tabData["content"],
+            ),
+          );
+          // return MaterialApp(
+          //   home: home
+          // );
         }
       }
     }
-    return MaterialApp(
-      initialRoute: '/home',
-      routes: routes
-    );
+    if(home == null) {
+      return MaterialApp(
+          initialRoute: '/home',
+          routes: routes
+      );
+    } else{
+      return MaterialApp(
+        home: home,
+        routes: routes
+      );
+    }
+
   }
 }
 
@@ -123,6 +146,7 @@ final routes = {
   '/reorderable_tab_layout_example': (context) => ReorderableTabLayoutExample(),
   '/multi_window_example': (context) => MultiWindowExample(),
   '/super_dnd_example': (context) => SuperDndExample(),
+  '/multi_window_dnd_example': (context) => multiWindowDndExample.MultiWindowDndExample(windowId: "main"),
 
 };
 class Home extends StatelessWidget{
@@ -165,6 +189,8 @@ class Home extends StatelessWidget{
                 menuButton(context, "/reorderable_tab_layout_example"),
                 menuButton(context, "/multi_window_example"),
                 menuButton(context, "/super_dnd_example"),
+                menuButton(context, "/multi_window_dnd_example"),
+
               ],
             ),
           )

@@ -44,21 +44,17 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
 
   late WindowMethodChannel windowChannel;
 
-  @override
-  void initState() async {
-    super.initState();
-    windowManager.addListener(this);
-
+  void initWindow() async {
     await windowManager.setPreventClose(true);
 
     windowChannel = WindowMethodChannel(
         getWindowChannelName(widget.windowId),
-      mode: ChannelMode.unidirectional
+        mode: ChannelMode.unidirectional
     );
     windowChannel.setMethodCallHandler((call) async {
       // json data 전달했다 기준
       final jsonData = jsonDecode(call.arguments);
-      if(call.method == REMOVE_TAB){
+      if (call.method == REMOVE_TAB) {
         final tabId = jsonData["tabId"];
         removeTab(tabId);
         checkClose();
@@ -67,6 +63,14 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
         print("windowId: ${widget.windowId}, arguments: ${call.arguments}");
       }
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+
+    initWindow();
 
     // 초기 데이터
     if(widget.tabData != null){
@@ -184,7 +188,9 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
                   content: "new Content"
                 );
 
-                createNewWindow(newTab);
+                setState(() {
+                  tabs.add(newTab);
+                });
               },
               child: Icon(
                 Icons.add,
@@ -227,7 +233,18 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
       child: Container(
         padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         color: Colors.red,
-        child: Text(tabData.title)
+        child: Row(
+          children: [
+            Text(tabData.title),
+            SizedBox(width: 8),
+            InkWell(
+              onTap: () {
+                createNewWindow(tabData);
+              },
+              child: Icon(Icons.add_box_outlined, size: 24),
+            ),
+          ],
+        ),
       ),
       dragBuilder: (context, child) {
         return Opacity(
@@ -243,8 +260,24 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
     );
   }
 
-  void createNewWindow(TabData tabData) {
-    // todo
+  void createNewWindow(TabData tabData) async {
+    Map<String, dynamic> mapTabData = {
+      "id": tabData.id,
+      "title": tabData.title,
+      "content": tabData.content
+    };
+
+    final controller = await WindowController.create(
+        WindowConfiguration(
+          arguments: jsonEncode({
+            "type": "newWindow",
+            "targetScreen": "multi_window_dnd_example",
+            "data": {
+              "tabData": mapTabData
+            }
+          }),
+        )
+    );
   }
 
   @override
