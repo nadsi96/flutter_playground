@@ -151,14 +151,15 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
     return DropRegion(
       formats: Formats.standardFormats,
       hitTestBehavior: HitTestBehavior.opaque,
+        onDropEnded: (event) {
+          final item = event.session.items.first;
+          if(item.localData is Map<String, dynamic>) {
+            print("windowId: ${widget.windowId} :: ${item.localData}");
+          }
+        },
       onDropOver: (event) {
-        // 앱 내부 드래그인가
-        final item = event.session.items.first;
-        if(item.localData is Map<String, dynamic>) {
-          return DropOperation.copy;
-        } else {
-          return DropOperation.none;
-        }
+
+        return DropOperation.copy;
       },
       onPerformDrop: (event) async {
         // final item = event.session.items.first;
