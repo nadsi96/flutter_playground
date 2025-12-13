@@ -17,6 +17,7 @@ import 'package:window_manager/window_manager.dart';
 import 'multi_split_view/dynamic_split_view_docking_example.dart';
 import 'multi_split_view/dynamic_split_view_docking_example2.dart';
 import 'multi_window_dnd/multi_window_dnd_example.dart' as multiWindowDndExample;
+import 'multi_window_dnd/multi_window_dnd_example2.dart' as multiWindowDndExample2;
 import 'multi_window_dnd/super_dnd_example/super_dnd_example.dart';
 
 void main(List<String> args) async{
@@ -119,6 +120,18 @@ class MyApp extends StatelessWidget {
           // return MaterialApp(
           //   home: home
           // );
+        } else if(arguments!["targetScreen"] == multiWindowDndExample2.TARGET_SCREEN) {
+          final data = arguments!["data"];
+          final tabData = data["tabData"];
+          home = multiWindowDndExample2.MultiWindowDndExample_newWindow(
+            windowId: windowId!,
+            tabData: multiWindowDndExample2.TabData(
+              id: tabData["id"],
+              title: tabData["title"],
+              content: tabData["content"],
+              count: tabData["count"] ?? 0,
+            )
+          );
         }
       }
     }
@@ -149,6 +162,7 @@ final routes = {
   '/multi_window_example': (context) => MultiWindowExample(),
   '/super_dnd_example': (context) => SuperDndExample(),
   '/multi_window_dnd_example': (context) => multiWindowDndExample.MultiWindowDndExample(windowId: "main"),
+  '/multi_window_dnd_example2': (context) => multiWindowDndExample2.MultiWindowDndExample(windowId: "main"),
   '/drag_boundary_example': (context) => DragBoundaryExample(),
 
 };
@@ -193,6 +207,7 @@ class Home extends StatelessWidget{
                 menuButton(context, "/multi_window_example"),
                 menuButton(context, "/super_dnd_example"),
                 menuButton(context, "/multi_window_dnd_example"),
+                menuButton(context, "/multi_window_dnd_example2"),
                 menuButton(context, "/drag_boundary_example"),
 
               ],
