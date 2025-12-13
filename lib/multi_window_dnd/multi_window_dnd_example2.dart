@@ -55,6 +55,12 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
 
   bool bOutSide = false; // 영역 외부 여부
   bool bPerformDropped = false;
+
+  Offset? dragPosition; // 영역 내부 있는 동안 드래그 위치 체크
+
+  final tabHeaderKey = GlobalKey();
+  final tabContentKey = GlobalKey();
+
   late WindowMethodChannel windowChannel;
 
   void initWindow() async {
@@ -162,106 +168,31 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
 
 
   Widget buildTabBar() {
-    return DropRegion(
-        formats: Formats.standardFormats,
-        hitTestBehavior: HitTestBehavior.opaque,
-        onDropEnded: (event) {
+    return SizedBox(
+        key: tabHeaderKey,
+        height: 50,
+        width: double.infinity,
+        child: Row(
+            children: [
+              for(final tabItem in tabs) getDraggableTab(tabItem),
+              InkWell(
+                  onTap: () {
+                    final newTab = TabData(
+                        id: DateTime.now().toString(),
+                        title: "New Tab",
+                        content: "new Content"
+                    );
 
-          if(bPerformDropped){
-            return;
-          }
-          bPerformDropped = false;
-
-          final item = event.session.items.first;
-          print("onDropEnded :: $item");
-          if(item.localData is Map<String, dynamic>) {
-            // print("windowId: ${widget.windowId} :: ${item.localData}");
-
-            final itemLocalData = (item.localData as Map<String, dynamic>);
-
-            if(itemLocalData["srcWindowId"] == "main") {
-              if(bOutSide) {
-                // 기존 탭 삭제
-                removeTab(itemLocalData["tabData"]["id"]);
-                // 새 창 띄우기
-                createNewWindow(mapTabData: itemLocalData["tabData"]);
-
-              }
-            }
-          }
-
-
-
-        },
-        onDropOver: (event) {
-          // widget.dragPosition = event.position.global;
-          return DropOperation.copy;
-        },
-        onDropEnter: (event) {
-          print("onDropEnter");
-          bOutSide = false;
-        },
-        onDropLeave: (event) {
-          print("onDropLeave");
-          bOutSide = true;
-        },
-        onPerformDrop: (event) async {
-          print("onPerformDrop");
-          bPerformDropped = true;
-          final item = event.session.items.first;
-          final dataMap = item.localData as Map<String, dynamic>;
-
-          String srcWindowId = dataMap["srcWindowId"];
-          TabData tabData = TabData(
-            id: dataMap["tabData"]["id"],
-            title: dataMap["tabData"]["title"],
-            content: dataMap["tabData"]["content"],
-            count: dataMap["tabData"]["count"],
-          );
-          final payload = DragPayload(
-              srcWindowId: srcWindowId,
-              tabData: tabData
-          );
-
-
-          // 현재 윈도에서 이동이 아닌 경우,
-          // 탭 보내준 원본 윈도에 삭제 요청
-          if(payload.srcWindowId != widget.windowId) {
-            await requestRemoveTab(payload.srcWindowId, payload.tabData.id);
-          }
-
-          // 자신 탭 목록에 추가
-          if(!tabs.any((tab) => tab.id == payload.tabData.id)) {
-            setState(() {
-              tabs.add(payload.tabData);
-            });
-          }
-        },
-        child: SizedBox(
-            height: 50,
-            width: double.infinity,
-            child: Row(
-                children: [
-                  for(final tabItem in tabs) getDraggableTab(tabItem),
-                  InkWell(
-                      onTap: () {
-                        final newTab = TabData(
-                            id: DateTime.now().toString(),
-                            title: "New Tab",
-                            content: "new Content"
-                        );
-
-                        setState(() {
-                          tabs.add(newTab);
-                        });
-                      },
-                      child: Icon(
-                        Icons.add,
-                        size: 50,
-                      )
+                    setState(() {
+                      tabs.add(newTab);
+                    });
+                  },
+                  child: Icon(
+                    Icons.add,
+                    size: 50,
                   )
-                ]
-            )
+              )
+            ]
         )
     );
   }
@@ -367,15 +298,145 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
 
 
     print("createNewWindow :: ${mapTabData}");
+
+
+    // 새 창을 띄울 때, position값이
+    // super_drag_and_drop onDropOver에서 수신한 event.position값은
+    // flutter 윈도 내부 기준 offset
+    // windowManager.setPosition은 전체 화면 좌상단 기준이기 때문에 차이 발생함
+    // 현재 윈도의 좌상단 좌표를 찾아서
+    // dragPosition 값을 더해줘야함
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    print("dpr: $dpr");
+    Offset? absPos;
+    if(!bOutSide && dragPosition != null){
+      final currentWindowPosition = await windowManager.getPosition();
+      absPos = currentWindowPosition + dragPosition!;
+      print("absPos: $absPos");
+    }
     final controller = await WindowController.create(
         WindowConfiguration(
           arguments: jsonEncode({
             "type": "newWindow",
             "targetScreen": TARGET_SCREEN,
+            "position": !bOutSide && dragPosition != null
+                ? {"x": absPos!.dx, "y": absPos.dy}
+                : null,
             "data": {
               "tabData": mapTabData
             }
           }),
+        )
+    );
+  }
+
+  Widget buildDropZone() {
+    return DropRegion(
+      formats: Formats.standardFormats,
+      hitTestBehavior: HitTestBehavior.translucent,
+        onDropEnded: (event) {
+
+          if(bPerformDropped){
+            return;
+          }
+          bPerformDropped = false;
+
+          final item = event.session.items.first;
+          print("onDropEnded :: $item");
+          if(item.localData is Map<String, dynamic>) {
+            // print("windowId: ${widget.windowId} :: ${item.localData}");
+
+            final itemLocalData = (item.localData as Map<String, dynamic>);
+
+            if(itemLocalData["srcWindowId"] == "main") {
+              if(bOutSide) {
+                // 기존 탭 삭제
+                removeTab(itemLocalData["tabData"]["id"]);
+                // 새 창 띄우기
+                createNewWindow(mapTabData: itemLocalData["tabData"]);
+
+              }
+            }
+          }
+        },
+        onDropOver: (event) {
+          dragPosition = event.position.global;
+          return DropOperation.copy;
+        },
+        onDropEnter: (event) {
+          print("onDropEnter");
+          bOutSide = false;
+        },
+        onDropLeave: (event) {
+          print("onDropLeave");
+          dragPosition = null;
+          bOutSide = true;
+        },
+        onPerformDrop: (event) async {
+          print("onPerformDrop");
+          bPerformDropped = true;
+          print("event.position.global: ${event.position.global}, event.position.local: ${event.position.local}");
+          final item = event.session.items.first;
+          final dataMap = item.localData as Map<String, dynamic>;
+
+          String srcWindowId = dataMap["srcWindowId"];
+          TabData tabData = TabData(
+            id: dataMap["tabData"]["id"],
+            title: dataMap["tabData"]["title"],
+            content: dataMap["tabData"]["content"],
+            count: dataMap["tabData"]["count"],
+          );
+          final payload = DragPayload(
+              srcWindowId: srcWindowId,
+              tabData: tabData
+          );
+
+
+          // 현재 윈도에서 이동이 아닌 경우,
+          // 탭 보내준 원본 윈도에 삭제 요청
+          if(payload.srcWindowId != widget.windowId) {
+            await requestRemoveTab(payload.srcWindowId, payload.tabData.id);
+
+            // 자신 탭 목록에 추가
+            if(!tabs.any((tab) => tab.id == payload.tabData.id)) {
+              setState(() {
+                tabs.add(payload.tabData);
+              });
+            }
+          }
+          // 현재 윈도인 경우
+          // 탭 헤더 영역이 아니라면
+          // 현재 포지션에서 새 창으로 띄우기
+          else {
+            if(tabContentKey.currentContext != null && dragPosition != null) {
+              final RenderBox contentBox = tabContentKey.currentContext!.findRenderObject() as RenderBox;
+              final Offset topLeft = contentBox.localToGlobal(Offset.zero);
+              final Offset btmRight = contentBox.localToGlobal(contentBox.size.bottomRight(Offset.zero));
+
+              final Rect contentRect = Rect.fromPoints(topLeft, btmRight);
+
+              if(contentRect.contains(dragPosition!)) {
+                createNewWindow(tabData: payload.tabData);
+              }
+            }
+          }
+
+        },
+        child: Column(
+          children: [
+            buildTabBar(),
+            Expanded(
+              key: tabContentKey,
+              child: Container(
+                  color: Colors.grey,
+                  child: Center(
+                      child: Text(
+                          tabs.isEmpty || selectedTabData == null ? "Empty" :  "${selectedTabData!.content} ${selectedTabData!.count}"
+                      )
+                  )
+              )
+            )
+          ]
         )
     );
   }
@@ -385,21 +446,7 @@ class MultiWindowDndState extends State<MultiWindowDndExample> with WindowListen
     return Scaffold(
       key: widget.windowKey,
       appBar: AppBar(title: Text(widget.windowId == "main" ? "MultiWindow D&D" : getWindowChannelName(widget.windowId))),
-      body: Column(
-          children: [
-            buildTabBar(),
-            Expanded(
-                child: Container(
-                    color: Colors.grey,
-                    child: Center(
-                        child: Text(
-                            tabs.isEmpty || selectedTabData == null ? "Empty" :  "${selectedTabData!.content} ${selectedTabData!.count}"
-                        )
-                    )
-                )
-            )
-          ]
-      ),
+      body: buildDropZone(),
       floatingActionButton: Row(
           children: [
             FloatingActionButton(

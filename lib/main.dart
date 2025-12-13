@@ -72,6 +72,7 @@ void main(List<String> args) async{
     /// window_manager로 변경 >>
     await windowManager.ensureInitialized();
 
+
     WindowOptions windowOptions = WindowOptions(
       size: Size(600, 450),
       minimumSize: Size(400, 300),
@@ -81,6 +82,12 @@ void main(List<String> args) async{
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.show();
       await windowManager.focus();
+      if(arguments != null && arguments["position"] != null) {
+        Offset position = Offset(arguments["position"]["x"], arguments["position"]["y"]);
+        windowManager.setPosition(position);
+      }
+      // windowManager.setPosition(position: );
+
     });
     /// << window_manager로 변경
   }
