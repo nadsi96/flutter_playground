@@ -11,6 +11,13 @@ import 'package:window_manager/window_manager.dart';
 /// 새 창에 드래그 앤 드랍으로는 탭 추가하지 않음
 /// 새 창에서 외부로 드래그 드랍해도 새 창 생성하지 않음
 /// 새 창에서 메인 윈도로 드래그 드랍하면 탭 이동 가능
+///
+/// 탭 영역에서 드래그하면 y축 고정으로 좌/우만 움직이는 UI는 불가
+/// DragableWidget도 Listener 위젯으로 만드는데, onPointerDown에서 스냅샷을 생성
+/// 스냅샷은 DragItemWidget의 dragBuilder, 없으면 child를 갖고 만드는데
+/// 만들면 이걸 이미지로 만들어서 OS에 전달,
+/// OS는 이 이미지를 보여주는 방식
+/// ValueListenableBuilder로 만들어도 스냅샷 갱신되지 않음
 final String TARGET_SCREEN = "multi_window_dnd_example2";
 final String REMOVE_TAB = "remove_tab2";
 final getWindowChannelName = (String windowId) => "multiWindowDnd2_$windowId";
