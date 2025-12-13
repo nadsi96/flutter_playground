@@ -17,14 +17,16 @@ class _DragBoundaryState extends State<DragBoundaryExample> {
   bool bOutSide = false; // 커서 화면 밖으로 나갔는감?
 
   void checkBoundary(Offset globalPos){
-    print("appKey.currentContext == null? ${widget.appKey.currentContext == null}");
+    // print("appKey.currentContext == null? ${widget.appKey.currentContext == null}");
     if(widget.appKey.currentContext != null){
       final RenderBox box = widget.appKey.currentContext!.findRenderObject() as RenderBox;
       final Offset topLeft = box.localToGlobal(Offset.zero);
       final Offset btmRight = box.localToGlobal(box.size.bottomRight(Offset.zero));
 
       final Rect windowRect = Rect.fromPoints(topLeft, btmRight);
-
+      print("cotains: ${windowRect.contains(globalPos)}");
+      print("windowRect: $windowRect");
+      print("globalPos: $globalPos");
       setState(() {
         bOutSide = !windowRect.contains(globalPos);
       });
