@@ -80,3 +80,16 @@ flutter_window.cpp 파일에 서브 윈도우 생성 시 플러그인을 등록�
   ...
 
 ```
+
+
+# screen_retriever
+window, mac, linux 지원   
+현재 커서 위치 반환 라이브러리
+```
+import 'package:screen_retriever/screen_retriever.dart';
+```
+
+**사용**
+``` dart
+final Offset curPos = await screenRetriever.getCursorScreenPoint();
+```
