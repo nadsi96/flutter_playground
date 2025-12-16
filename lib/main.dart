@@ -10,6 +10,7 @@ import 'package:flutter_playground/drag_boundary_example/drag_boundary_example.d
 import 'package:flutter_playground/multi_split_view/dynamic_split_view_example.dart';
 import 'package:flutter_playground/multi_split_view/multi_split_view_example.dart';
 import 'package:flutter_playground/multi_window/multi_window_example.dart';
+import 'package:flutter_playground/multi_window/multi_window_position.dart' as multiWindowPosition;
 import 'package:flutter_playground/reorderble_tab_layout/reorderble_tab_layout_example.dart';
 import 'package:flutter_playground/riverpod/riverpod_counter_page.dart';
 import 'package:window_manager/window_manager.dart';
@@ -106,13 +107,14 @@ class MyApp extends StatelessWidget {
     print("arguments: $arguments");
     if(arguments != null){
       if(arguments!["type"] == "newWindow"){
-        if(arguments!["targetScreen"] == "multi_window_example"){
+        final targetScreen = arguments!["targetScreen"];
+        if(targetScreen == "multi_window_example"){
           final data = arguments!["data"];
           home = NewWindow(windowId: windowId!, count: data["count"] ?? -1);
           return MaterialApp(
             home: home
           );
-        } else if(arguments!["targetScreen"] == "multi_window_dnd_example") {
+        } else if(targetScreen == "multi_window_dnd_example") {
           final data = arguments!["data"];
           final tabData = data["tabData"];
           home = multiWindowDndExample.MultiWindowDndExample(
@@ -124,10 +126,7 @@ class MyApp extends StatelessWidget {
               count: tabData["count"] ?? 0,
             ),
           );
-          // return MaterialApp(
-          //   home: home
-          // );
-        } else if(arguments!["targetScreen"] == multiWindowDndExample2.TARGET_SCREEN) {
+        } else if(targetScreen == multiWindowDndExample2.TARGET_SCREEN) {
           final data = arguments!["data"];
           final tabData = data["tabData"];
           home = multiWindowDndExample2.MultiWindowDndExample_newWindow(
@@ -139,6 +138,8 @@ class MyApp extends StatelessWidget {
               count: tabData["count"] ?? 0,
             )
           );
+        } else if(targetScreen == "multi_window_position") {
+          home = multiWindowPosition.NewWindow(windowId: windowId!);
         }
       }
     }
@@ -171,6 +172,7 @@ final routes = {
   '/multi_window_dnd_example': (context) => multiWindowDndExample.MultiWindowDndExample(windowId: "main"),
   '/multi_window_dnd_example2': (context) => multiWindowDndExample2.MultiWindowDndExample(windowId: "main"),
   '/drag_boundary_example': (context) => DragBoundaryExample(),
+  '/multi_window_position': (context) => multiWindowPosition.MultiWindowPositionExample(),
 
 };
 class Home extends StatelessWidget{
@@ -216,6 +218,7 @@ class Home extends StatelessWidget{
                 menuButton(context, "/multi_window_dnd_example"),
                 menuButton(context, "/multi_window_dnd_example2"),
                 menuButton(context, "/drag_boundary_example"),
+                menuButton(context, "/multi_window_position"),
 
               ],
             ),
