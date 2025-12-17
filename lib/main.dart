@@ -13,6 +13,7 @@ import 'package:flutter_playground/multi_window/multi_window_example.dart';
 import 'package:flutter_playground/multi_window/multi_window_position.dart' as multiWindowPosition;
 import 'package:flutter_playground/reorderble_tab_layout/reorderble_tab_layout_example.dart';
 import 'package:flutter_playground/riverpod/riverpod_counter_page.dart';
+import 'package:flutter_playground/snapshot_widget_example/snapshot_widget_example.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'multi_split_view/dynamic_split_view_docking_example.dart';
@@ -173,6 +174,7 @@ final routes = {
   '/multi_window_dnd_example2': (context) => multiWindowDndExample2.MultiWindowDndExample(windowId: "main"),
   '/drag_boundary_example': (context) => DragBoundaryExample(),
   '/multi_window_position': (context) => multiWindowPosition.MultiWindowPositionExample(),
+  '/snapshot_widget_example': (context) => SnapShotWidgetExample(),
 
 };
 class Home extends StatelessWidget{
@@ -219,6 +221,7 @@ class Home extends StatelessWidget{
                 menuButton(context, "/multi_window_dnd_example2"),
                 menuButton(context, "/drag_boundary_example"),
                 menuButton(context, "/multi_window_position"),
+                menuButton(context, "/snapshot_widget_example"),
 
               ],
             ),
