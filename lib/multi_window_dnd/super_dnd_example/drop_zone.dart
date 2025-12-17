@@ -113,6 +113,35 @@ class DropZoneState extends State<DropZone> {
                 ),
               ),
             ),
+            Positioned(
+              top: 0,
+              right: 0,
+              bottom: 0,
+              child: DropRegion(
+                  formats: Formats.standardFormats,
+                  onDropOver: (DropOverEvent) {
+                    return DropOverEvent.session.allowedOperations.firstOrNull ?? DropOperation.none;
+                  },
+                onDropEnter: (details){
+                    print("onDropEnter :: second");
+                },
+                onDropLeave: (details){
+                    print("onDropLeave :: second");
+                },
+                onDropEnded: (details){
+                    print("onDropEnded :: second");
+                },
+                onPerformDrop: (PerformDropEvent ) async {
+                    print("onPerformDrop :: second");
+                },
+                  child: Container(
+                    width: 50,
+                    color: Colors.grey,
+                  ),
+
+              ),
+
+            )
           ],
         ),
       )
