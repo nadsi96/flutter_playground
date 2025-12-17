@@ -43,17 +43,14 @@ dependencies:
   window_manager: ^0.5.1
   super_drag_and_drop: ^0.9.1
   screen_retriever: ^0.2.0
+  riverpod_annotation: ^3.0.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  riverpod_generator: ^3.0.3
+  build_runner: ^2.7.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
