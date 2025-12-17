@@ -11,6 +11,7 @@ import 'package:flutter_playground/multi_split_view/dynamic_split_view_example.d
 import 'package:flutter_playground/multi_split_view/multi_split_view_example.dart';
 import 'package:flutter_playground/multi_window/multi_window_example.dart';
 import 'package:flutter_playground/multi_window/multi_window_position.dart' as multiWindowPosition;
+import 'package:flutter_playground/multi_window_dnd/duplicated_super_dnd_example/duplicated_super_dnd_example.dart';
 import 'package:flutter_playground/multi_window_dnd/super_dnd_split_view/SuperDndSplitView.dart';
 import 'package:flutter_playground/reorderble_tab_layout/reorderble_tab_layout_example.dart';
 import 'package:flutter_playground/riverpod/riverpod_counter_page.dart';
@@ -177,6 +178,7 @@ final routes = {
   '/multi_window_position': (context) => multiWindowPosition.MultiWindowPositionExample(),
   '/snapshot_widget_example': (context) => SnapShotWidgetExample(),
   '/super_dnd_split_view': (context) => SuperDndSplitView(),
+  '/duplicated_super_dnd_example': (context) => DuplicatedSuperDndExample(),
 
 };
 class Home extends StatelessWidget{
@@ -225,6 +227,7 @@ class Home extends StatelessWidget{
                 menuButton(context, "/multi_window_position"),
                 menuButton(context, "/snapshot_widget_example"),
                 menuButton(context, "/super_dnd_split_view"),
+                menuButton(context, "/duplicated_super_dnd_example"),
               ],
             ),
           )
