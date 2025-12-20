@@ -1,4 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<!--  둘 다 선언되어있으면 geolocation에서는  ACCESS_FINE_LOCATION 사용 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+<!--    background에서도 계속 갱신 받고 싶다면 추가 (sdk 10 이상)-->
+<!--    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />-->
+<!-- geolocation forgound에서 계속 위치 갱신 받고 싶다면 추가 (sdk34 이상)-->
+<!--    if you want to continue receiving updates even when your App is running in the foreground: FOREGROUND_SERVICE_LOCATION-->
+<!--    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />-->
+
     <application
         android:label="flutter_playground"
         android:name="${applicationName}"

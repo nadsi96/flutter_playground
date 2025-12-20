@@ -44,6 +44,9 @@ dependencies:
   super_drag_and_drop: ^0.9.1
   screen_retriever: ^0.2.0
   riverpod_annotation: ^3.0.3
+  geolocator: ^14.0.2
+  network_info_plus: ^7.0.0
+  permission_handler: ^12.0.1
 
 dev_dependencies:
   flutter_test:

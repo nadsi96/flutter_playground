@@ -18,6 +18,7 @@ import 'package:flutter_playground/riverpod/riverpod_counter_page.dart';
 import 'package:flutter_playground/snapshot_widget_example/snapshot_widget_example.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'location_example/geolocation_example.dart';
 import 'multi_split_view/dynamic_split_view_docking_example.dart';
 import 'multi_split_view/dynamic_split_view_docking_example2.dart';
 import 'multi_window_dnd/multi_window_dnd_example.dart' as multiWindowDndExample;
@@ -179,6 +180,7 @@ final routes = {
   '/snapshot_widget_example': (context) => SnapShotWidgetExample(),
   '/super_dnd_split_view': (context) => SuperDndSplitView(),
   '/duplicated_super_dnd_example': (context) => DuplicatedSuperDndExample(),
+  '/geolocation_example': (context) => GeolocationExample(),
 
 };
 class Home extends StatelessWidget{
@@ -228,6 +230,7 @@ class Home extends StatelessWidget{
                 menuButton(context, "/snapshot_widget_example"),
                 menuButton(context, "/super_dnd_split_view"),
                 menuButton(context, "/duplicated_super_dnd_example"),
+                menuButton(context, "/geolocation_example"),
               ],
             ),
           )
