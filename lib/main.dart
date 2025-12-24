@@ -16,6 +16,7 @@ import 'package:flutter_playground/multi_window_dnd/super_dnd_split_view/SuperDn
 import 'package:flutter_playground/reorderble_tab_layout/reorderble_tab_layout_example.dart';
 import 'package:flutter_playground/riverpod/riverpod_counter_page.dart';
 import 'package:flutter_playground/widget_test/snapshot_widget_example/snapshot_widget_example.dart';
+import 'package:flutter_playground/widget_test/stateful_example/stateful_widget_example.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'location_example/geolocation_example.dart';
@@ -181,6 +182,7 @@ final routes = {
   '/super_dnd_split_view': (context) => SuperDndSplitView(),
   '/duplicated_super_dnd_example': (context) => DuplicatedSuperDndExample(),
   '/geolocation_example': (context) => GeolocationExample(),
+  '/stateful_widget_example': (context) => StatefulWidgetExample()
 
 };
 class Home extends StatelessWidget{
@@ -231,6 +233,7 @@ class Home extends StatelessWidget{
                 menuButton(context, "/super_dnd_split_view"),
                 menuButton(context, "/duplicated_super_dnd_example"),
                 menuButton(context, "/geolocation_example"),
+                menuButton(context, "/stateful_widget_example"),
               ],
             ),
           )
